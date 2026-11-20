@@ -56,10 +56,13 @@ jobs:
         run: |
           set -euo pipefail
           sh -n support/LSPosed-Android17/provider/a17-provider-guard.sh
+          sh -n support/LSPosed-Android17/provider/a17-provider-control.sh
           sh -n support/LSPosed-Android17/provider/test-provider-matrix.sh
+          sh -n support/LSPosed-Android17/provider/test-provider-selector.sh
           (
             cd support/LSPosed-Android17/provider
             sh ./test-provider-matrix.sh
+            sh ./test-provider-selector.sh
           )
 
       - name: Stage verified provider guard in the Zygisk module source
@@ -67,6 +70,9 @@ jobs:
         run: |
           set -euo pipefail
           cp support/LSPosed-Android17/provider/a17-provider-guard.sh vector/zygisk/module/a17-provider-guard.sh
+          cp support/LSPosed-Android17/provider/a17-provider-control.sh vector/zygisk/module/a17-provider-control.sh
+          cp support/LSPosed-Android17/provider/ZygiskProviderControl.kt vector/daemon/src/main/kotlin/org/matrix/vector/daemon/utils/ZygiskProviderControl.kt
+          cp support/LSPosed-Android17/provider/ZygiskProviderSettings.kt vector/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/ZygiskProviderSettings.kt
 
       - name: Apply Android 17 Zygisk provider installation compatibility patch
         shell: bash
@@ -78,8 +84,24 @@ jobs:
           git apply "$patch"
           sh -n zygisk/module/customize.sh
           sh -n zygisk/module/a17-provider-guard.sh
+          sh -n zygisk/module/a17-provider-control.sh
           grep -q 'a17_provider_preflight' zygisk/module/customize.sh
+          grep -q 'a17-provider-control.sh' zygisk/module/customize.sh
           echo "Android 17 install-time dual-provider guard staged; runtime tests still required."
+
+      - name: Compile manager UI and new daemon IPC for provider selection
+        shell: bash
+        working-directory: vector
+        run: |
+          set -euo pipefail
+          patch="../support/LSPosed-Android17/patches/1120-android17-provider-settings-ui.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          grep -q 'const int PROTOCOL_VERSION = 4' services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
+          grep -q 'selectZygiskProvider' services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
+          grep -q 'ZygiskProviderSettings' manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
+          grep -q 'ZygiskProviderControl' daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+          echo "Manager / daemon IPC and Android 17 Zygisk provider menu staged."
 
       - name: Apply experimental generation-retirement patch for Android 17
         shell: bash
@@ -172,12 +194,16 @@ jobs:
           for module_zip in artifact/Vector-v*-Release.zip artifact/Vector-v*-Debug.zip; do
             unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-guard.sh'
             unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-guard.sh.sha256'
+            unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-control.sh'
+            unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-control.sh.sha256'
             unzip -p "$module_zip" customize.sh | grep -q 'a17_provider_preflight'
-            unzip -p "$module_zip" a17-provider-guard.sh | grep -q 'a17_provider_evaluate'
+            unzip -p "$module_zip" a17-provider-control.sh | grep -q 'a17_apply'
           done
           printf '%s\n' 'Magisk built-in Zygisk: requires standalone provider OFF; API 37 device hook test pending' > artifact/ZYGISK_PROVIDER_MATRIX.txt
           printf '%s\n' 'ReZygisk: requires Magisk built-in Zygisk OFF; API 37 zygote_next unresolved upstream' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
-          printf '%s\n' 'Only one active injection provider is supported. The guard does not toggle provider settings.' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
+          printf '%s\n' 'Auto default chooses built-in Magisk if functioning; otherwise installed ReZygisk.' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
+          printf '%s\n' 'Choices are stored by the root daemon; switching is staged for next boot only.' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
+          printf '%s\n' 'One active provider only; actual injection has not been verified.' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
           sha256sum artifact/*.zip artifact/*.apk > artifact/SHA256SUMS.txt
           git -C vector rev-parse HEAD > artifact/SOURCE_REVISION.txt
           cp API37_SOURCE_TESTS.json artifact/API37_SOURCE_TESTS.json
@@ -188,6 +214,8 @@ jobs:
           sha256sum support/LSPosed-Android17/patches/1099-fail-closed-on-missing-package-manager.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/patches/1110-android17-zygisk-provider-guard.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/provider/a17-provider-guard.sh >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/provider/a17-provider-control.sh >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/patches/1120-android17-provider-settings-ui.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
 
       - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
         shell: bash
@@ -216,6 +244,9 @@ jobs:
           Android 17 runtime compatibility has NOT been certified.
           Both Magisk built-in Zygisk and ReZygisk setups require independent on-device tests.
           Magisk built-in Zygisk and ReZygisk must NOT be activated together.
+          Manager menu supports Auto, built-in Zygisk, or ReZygisk on API 37.
+          Auto stages Magisk if functioning; otherwise ReZygisk, if installed.
+          Provider switches require a REBOOT; the manager never auto-reboots.
           To verify a full port: boot on SDK 37, start Zygisk, verify daemon
           and manager operation, run real module hook, test system_server, and
           prove recovery from failed hooks. See validation kit.
@@ -226,7 +257,7 @@ jobs:
       - name: Upload verification-gated build output
         uses: actions/upload-artifact@v4
         with:
-          name: Android17-Vector-3119-CANDIDATE-MEMORY-FIX-UNVERIFIED
+          name: Android17-Vector-3119-PROVIDER-SELECTOR-UNVERIFIED
           path: artifact/
           if-no-files-found: error
           retention-days: 30
