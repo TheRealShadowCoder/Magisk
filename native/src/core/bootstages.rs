@@ -153,10 +153,10 @@ impl MagiskD {
         }
 
         exec_common_scripts(cstr!("post-fs-data"));
-        self.zygisk_enabled.store(
-            self.get_db_setting(DbEntryKey::ZygiskConfig) != 0,
-            Ordering::Release,
-        );
+        // FXGA: enable Zygisk on every normal boot; Safe Mode above exits
+        // before this point and retains emergency module disable behavior.
+        self.set_db_setting(DbEntryKey::ZygiskConfig, 1).log_ok();
+        self.zygisk_enabled.store(true, Ordering::Release);
         initialize_denylist();
         self.handle_modules();
         clean_mounts();
