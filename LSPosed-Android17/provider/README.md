@@ -73,3 +73,51 @@ for a real module hook test, and reports may contain device identifiers/logs.
 **No evidence of successful patched release compilation or Android 17 runtime
 certification has been established yet.** Treat the previous APK as an older
 unpatched binary.
+
+## In-manager provider selection (new)
+
+Open **Vector Manager → System status → Zygisk provider**.
+
+* **Automatic (default)**: on API 37, choose working Magisk v31.0+ built-in
+  Zygisk if available; otherwise use installed ReZygisk.
+* **Magisk built-in Zygisk**: stage built-in injection ON and ReZygisk OFF.
+* **ReZygisk**: stage Magisk built-in injection OFF and ReZygisk ON.
+
+The user selects with radio buttons and presses **Use selected provider**.
+If both were enabled during initial installation, the installer automatically
+stages the safe default to allow booting, and a one-time **Choose a Zygisk
+provider** dialog offers to keep Auto or choose a different provider.
+
+Provider mode is retained in the root-owned
+\`/data/adb/vector-provider/choice\`, outside the module directory, so
+reflashing does not wipe the selection. Each change affects the NEXT boot;
+the app never restarts Zygote or reboots without the user's action.
+The manager displays which provider is configured, the previous collision
+state, whether a choice prompt is outstanding, and a pending-reboot flag.
+
+The interface is a real manager/daemon Binder feature. The AIDL protocol is
+bumped from 3 to **4**; installing a manager.apk from this build over the old
+daemon is not supported. Install the complete Zygisk ZIP and reboot.
+
+Provider changes from the terminal (Android 17, requires root):
+\`\`\`powershell
+adb shell su -c '/system/bin/sh /data/adb/modules/zygisk_vector/a17-provider-control.sh status'
+adb shell su -c '/system/bin/sh /data/adb/modules/zygisk_vector/a17-provider-control.sh select auto'
+adb shell su -c '/system/bin/sh /data/adb/modules/zygisk_vector/a17-provider-control.sh select magisk'
+adb shell su -c '/system/bin/sh /data/adb/modules/zygisk_vector/a17-provider-control.sh select rezygisk'
+\`\`\`
+
+Selecting a provider changes root module state and (on Magisk) the Zygisk
+database setting. **Only apply the change on devices with a recoverable boot
+path.** Select-one-provider policy rejects other active standalone injectors.
+Failed writes return an error; the script attempts restoration of prior state
+where possible. It cannot guarantee a full rollback after hardware or power
+failure and must be tested before production.
+
+Runtime testing still needed:
+* Verify root command and UI interaction on LineageOS 24, Android 17 API 37.
+* Test both providers separately in Zygote, system_server and an actual hooked
+  non-system test app.
+* Confirm that Magisk v31.0 or higher is used for Android 17 built-in Zygisk.
+* Confirm third-party injector conflicts are refused, and check reboot recovery.
+* Confirm ReZygisk \`zygote_next\` support for the ROM, still reported upstream.
