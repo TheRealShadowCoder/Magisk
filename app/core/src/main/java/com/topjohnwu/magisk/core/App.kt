@@ -14,6 +14,11 @@ open class App() : Application() {
         Info.stub = data
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        FxgaTelemetry.install(this)
+    }
+
     override fun attachBaseContext(context: Context) {
         if (context is Application) {
             AppContext.attachApplication(context)

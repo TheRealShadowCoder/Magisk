@@ -1,6 +1,10 @@
 package com.topjohnwu.magisk.ui.settings
 
 import android.webkit.URLUtil
+import android.content.Intent
+import com.topjohnwu.magisk.ui.module.FxgaModuleSettingsActivity
+import com.topjohnwu.magisk.ui.zygisk.FxgaCompatibilityActivity
+import com.topjohnwu.magisk.core.Info
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -89,7 +93,9 @@ fun SettingsScreen(
         onRestoreApp = { (context as? Activity)?.let(viewModel::restoreMagiskApp) },
         onHideAppConfirm = { label -> (context as? Activity)?.let { viewModel.hideApp(it, label) } },
         onCreateHosts = viewModel::createHosts,
+        onOpenModuleSettings = { context.startActivity(Intent(context, FxgaModuleSettingsActivity::class.java)) },
         onToggleZygisk = viewModel::toggleZygisk,
+        onOpenCompatibility = { context.startActivity(Intent(context, FxgaCompatibilityActivity::class.java)) },
         onToggleDenyList = viewModel::toggleDenyList,
         // Drop taps while a screen transition runs, so a quick second tap can't push again
         onNavigateToDenyList = dropUnlessResumed { viewModel.navigateToDenyList() },
@@ -126,7 +132,9 @@ fun SettingsContent(
     onRestoreApp: () -> Unit,
     onHideAppConfirm: (String) -> Unit,
     onCreateHosts: () -> Unit,
+    onOpenModuleSettings: () -> Unit,
     onToggleZygisk: (Boolean) -> Unit,
+    onOpenCompatibility: () -> Unit,
     onToggleDenyList: (Boolean) -> Unit,
     onNavigateToDenyList: () -> Unit,
     onToggleSuAuth: (Boolean) -> Unit,
@@ -219,7 +227,9 @@ fun SettingsContent(
                         MagiskSection(
                             uiState = uiState,
                             onCreateHosts = onCreateHosts,
+                            onOpenModuleSettings = onOpenModuleSettings,
                             onToggleZygisk = onToggleZygisk,
+                            onOpenCompatibility = onOpenCompatibility,
                             onToggleDenyList = onToggleDenyList,
                             onNavigateToDenyList = onNavigateToDenyList,
                         )
@@ -443,7 +453,9 @@ private fun AppSettingsSection(
 private fun MagiskSection(
     uiState: SettingsUiState,
     onCreateHosts: () -> Unit,
+    onOpenModuleSettings: () -> Unit,
     onToggleZygisk: (Boolean) -> Unit,
+    onOpenCompatibility: () -> Unit,
     onToggleDenyList: (Boolean) -> Unit,
     onNavigateToDenyList: () -> Unit,
     modifier: Modifier = Modifier
@@ -461,21 +473,37 @@ private fun MagiskSection(
             onClick = onCreateHosts
         )
 
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
+        SettingsArrow(
+            title = "FXGA module settings",
+            summary = "Read installed modules and edit supported module options",
+            onClick = onOpenModuleSettings
+        )
+
         if (uiState.isZygiskSupported) {
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
-            // Zygisk
-            SettingsSwitch(
+            // FXGA: the daemon enables Zygisk at normal boot; no off toggle.
+            SettingsArrow(
                 title = stringResource(CoreR.string.zygisk),
-                summary = stringResource(
-                    if (uiState.isZygiskPendingReboot) CoreR.string.reboot_apply_change
-                    else CoreR.string.settings_zygisk_summary
-                ),
-                checked = uiState.zygiskEnabled,
-                onCheckedChange = onToggleZygisk
+                summary = if (Info.isZygiskEnabled) "Always on · active this boot"
+                    else "Always on · inactive this boot (check diagnostics)",
+                onClick = onOpenCompatibility
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            SettingsArrow(
+                title = "FXGA Android 17 compatibility",
+                summary = "App issues, Zygisk modules and diagnostic ZIP export",
+                onClick = onOpenCompatibility
             )
 
             HorizontalDivider(

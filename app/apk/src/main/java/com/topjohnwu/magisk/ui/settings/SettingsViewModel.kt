@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.topjohnwu.magisk.arch.BaseViewModel
 import com.topjohnwu.magisk.core.AppContext
 import com.topjohnwu.magisk.core.Config
+import com.topjohnwu.magisk.core.FxgaTelemetry
 import com.topjohnwu.magisk.core.Const
 import com.topjohnwu.magisk.core.Info
 import com.topjohnwu.magisk.core.R as CoreR
@@ -93,10 +94,12 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun refreshEnvironment() {
+        FxgaTelemetry.event("settings.refreshEnvironment")
         _uiState.update { it.withEnvironment() }
     }
 
     fun setColorMode(index: Int) {
+        FxgaTelemetry.event("settings.setColorMode")
         val newMode = ColorMode.fromUiIndex(index, _uiState.value.isDynamicColorSupported)
         Config.colorMode = newMode.value
         ThemeState.colorMode = newMode.value
@@ -104,12 +107,14 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun setLanguage(index: Int) {
+        FxgaTelemetry.event("settings.setLanguage")
         val tag = _uiState.value.availableLanguageTags.getOrNull(index) ?: return
         Config.locale = tag
         _uiState.update { it.copy(selectedLanguageIndex = index) }
     }
 
     fun setUpdateChannel(index: Int) {
+        FxgaTelemetry.event("settings.setUpdateChannel")
         Config.updateChannel = index
         Info.resetUpdate()
         val isCustom = index == Config.Value.CUSTOM_CHANNEL
@@ -124,12 +129,14 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun openCustomChannelUrlDialog() {
+        FxgaTelemetry.event("settings.openCustomChannelUrlDialog")
         _uiState.update {
             it.copy(activeDialog = SettingsDialog.CustomChannelUrl(it.customChannelUrl))
         }
     }
 
     fun saveCustomChannelUrl(url: String) {
+        FxgaTelemetry.event("settings.saveCustomChannelUrl")
         Config.customChannelUrl = url
         Info.resetUpdate()
         _uiState.update {
@@ -141,22 +148,26 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun setDoh(enabled: Boolean) {
+        FxgaTelemetry.event("settings.setDoh")
         Config.doh = enabled
         _uiState.update { it.copy(dohEnabled = enabled) }
     }
 
     fun setCheckUpdate(enabled: Boolean) {
+        FxgaTelemetry.event("settings.setCheckUpdate")
         Config.checkUpdate = enabled
         _uiState.update { it.copy(checkUpdateEnabled = enabled) }
     }
 
     fun openDownloadPathDialog() {
+        FxgaTelemetry.event("settings.openDownloadPathDialog")
         _uiState.update {
             it.copy(activeDialog = SettingsDialog.DownloadPath(it.downloadPath))
         }
     }
 
     fun saveDownloadPath(path: String) {
+        FxgaTelemetry.event("settings.saveDownloadPath")
         Config.downloadDir = path
         _uiState.update {
             it.copy(
@@ -168,11 +179,13 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun setRandomPackageName(enabled: Boolean) {
+        FxgaTelemetry.event("settings.setRandomPackageName")
         Config.randName = enabled
         _uiState.update { it.copy(randomPackageNameEnabled = enabled) }
     }
 
     fun openHideAppDialog() {
+        FxgaTelemetry.event("settings.openHideAppDialog")
         _uiState.update { it.copy(activeDialog = SettingsDialog.HideApp("Magisk")) }
     }
 
@@ -184,10 +197,12 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun restoreMagiskApp(activity: Activity) {
+        FxgaTelemetry.event("settings.restoreMagiskApp")
         viewModelScope.launch { AppMigration.restore(activity) }
     }
 
     fun createHosts() {
+        FxgaTelemetry.event("settings.createHosts")
         viewModelScope.launch {
             RootUtils.addSystemlessHosts()
             AppContext.toast(CoreR.string.settings_hosts_toast, Toast.LENGTH_SHORT)
@@ -195,20 +210,21 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun toggleZygisk(enabled: Boolean) {
-        Config.zygisk = enabled
-        val isMismatch = enabled != Info.isZygiskEnabled
+        FxgaTelemetry.event("settings.toggleZygisk")
+        // Always-on normal boot policy; native code retains Safe Mode.
+        Config.zygisk = true
+        val isMismatch = !Info.isZygiskEnabled
         _uiState.update {
             it.copy(
-                zygiskEnabled = enabled,
+                zygiskEnabled = true,
                 isZygiskPendingReboot = isMismatch,
             )
         }
-        if (isMismatch) {
-            showToast(CoreR.string.reboot_apply_change)
-        }
+        if (isMismatch) showToast(CoreR.string.reboot_apply_change)
     }
 
     fun toggleDenyList(enabled: Boolean) {
+        FxgaTelemetry.event("settings.toggleDenyList")
         _uiState.update { it.copy(denyListEnabled = enabled) }
         val cmd = if (enabled) "enable" else "disable"
         Shell.cmd("magisk --denylist $cmd").submit { result ->
@@ -221,35 +237,42 @@ class SettingsViewModel : BaseViewModel() {
     }
 
     fun navigateToDenyList() {
+        FxgaTelemetry.event("settings.navigateToDenyList")
         navigateTo(Route.DenyList)
     }
 
     fun setSuAuth(enabled: Boolean) {
+        FxgaTelemetry.event("settings.setSuAuth")
         Config.suAuth = enabled
         _uiState.update { it.copy(suAuthEnabled = enabled) }
     }
 
     fun setMultiuserMode(index: Int) {
+        FxgaTelemetry.event("settings.setMultiuserMode")
         Config.suMultiuserMode = index
         _uiState.update { it.copy(selectedMultiuserModeIndex = index) }
     }
 
     fun setNamespaceMode(index: Int) {
+        FxgaTelemetry.event("settings.setNamespaceMode")
         Config.suMntNamespaceMode = index
         _uiState.update { it.copy(selectedNamespaceModeIndex = index) }
     }
 
     fun setNotificationMode(index: Int) {
+        FxgaTelemetry.event("settings.setNotificationMode")
         Config.suNotification = index
         _uiState.update { it.copy(selectedNotificationModeIndex = index) }
     }
 
     fun setSuRestrict(enabled: Boolean) {
+        FxgaTelemetry.event("settings.setSuRestrict")
         Config.suRestrict = enabled
         _uiState.update { it.copy(suRestrictEnabled = enabled) }
     }
 
     fun dismissDialog() {
+        FxgaTelemetry.event("settings.dismissDialog")
         _uiState.update { it.copy(activeDialog = null) }
     }
 }

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "settings": [
+    {
+      "key": "enabled",
+      "label": "Enable feature",
+      "type": "toggle",
+      "default": true
+    },
+    {
+      "key": "profile",
+      "label": "Module profile",
+      "type": "select",
+      "options": [
+        "stable",
+        "balanced",
+        "debug"
+      ],
+      "default": "stable"
+    },
+    {
+      "key": "log_level",
+      "label": "Log level",
+      "type": "integer",
+      "min": 0,
+      "max": 3,
+      "default": 1
+    }
+  ]
+}

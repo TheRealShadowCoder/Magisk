@@ -98,8 +98,9 @@ impl SePolicy {
             allow(["domain"], [proc], ["fifo_file"], ["write", "read", "open", "getattr"]);
 
             // Allow these processes to access MagiskSU and output logs
-            allow(["zygote", "shell", "platform_app",
-                "system_app", "priv_app", "untrusted_app", "untrusted_app_all"],
+            // API 37 split app domains, based on updated upstream policy.
+            allow(["zygote", "shell", "platform_app", "platform_app_all",
+                "system_app", "priv_app", "priv_app_all", "untrusted_app", "untrusted_app_all"],
                 [proc], ["unix_stream_socket"], ["connectto", "getopt"]);
 
             // Let selected domains access tmpfs files
