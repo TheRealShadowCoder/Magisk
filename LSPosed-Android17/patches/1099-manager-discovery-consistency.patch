@@ -1,0 +1,90 @@
+diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
+--- a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
++++ b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
+@@ -4,1 +4,2 @@
+-import android.content.pm.PackageManager
++import android.content.pm.PackageManager
++import java.util.concurrent.atomic.AtomicInteger
+@@ -36,1 +37,8 @@
+-data class UserModulesState(val user: DeviceUser, val modules: List<InstalledModule>)
++data class UserModulesState(val user: DeviceUser, val modules: List<InstalledModule>)
++
++/** A scan's complete outcome; only the newest request may publish any part of it. */
++private data class ModuleScanResult(
++    val tabs: List<UserModulesState>,
++    val daemonAvailable: Boolean,
++    val scanFailed: Boolean,
++)
+@@ -106,1 +114,3 @@
+-    private val _discovered = MutableStateFlow<List<UserModulesState>>(emptyList())
++    private val scanGeneration = AtomicInteger(0)
++
++    private val _discovered = MutableStateFlow<List<UserModulesState>>(emptyList())
+@@ -401,9 +411,19 @@
+-    fun loadModules(refresh: Boolean = false) {
+-        viewModelScope.launch {
+-            _isLoading.update { true }
+-            val tabs = withContext(Dispatchers.IO) { discover(refresh) }
+-            _discovered.update { tabs }
+-            _isLoading.update { false }
+-            loadFacts(tabs)
+-        }
+-    }
++    fun loadModules(refresh: Boolean = false) {
++        val request = scanGeneration.incrementAndGet()
++        viewModelScope.launch {
++            _isLoading.update { true }
++            val result = withContext(Dispatchers.IO) { discover(refresh) }
++            // A slow earlier discovery must not overwrite newer package-broadcast results.
++            if (request != scanGeneration.get()) return@launch
++            _daemonAvailable.value = result.daemonAvailable
++            _scanFailed.value = result.scanFailed
++            if (result.daemonAvailable && !result.scanFailed) {
++                _discovered.value = result.tabs
++                loadFacts(result.tabs)
++            } else {
++                // A transient Binder failure is not an uninstall. Retain known-good rows.
++                logW("modules: discovery unavailable; preserving the last successful module list")
++            }
++            _isLoading.update { false }
++        }
++    }
+@@ -493,1 +513,1 @@
+-    private suspend fun discover(refresh: Boolean): List<UserModulesState> {
++    private suspend fun discover(refresh: Boolean): ModuleScanResult {
+@@ -498,1 +518,1 @@
+-        _daemonAvailable.value = usersResult.isSuccess
++        val daemonAvailable = usersResult.isSuccess
+@@ -507,1 +527,1 @@
+-        _scanFailed.value = scan.isFailure
++        val scanFailed = scan.isFailure
+@@ -573,1 +593,5 @@
+-        return perUser.filter { it.modules.isNotEmpty() }.ifEmpty { perUser.take(1) }
++        return ModuleScanResult(
++            tabs = perUser.filter { it.modules.isNotEmpty() }.ifEmpty { perUser.take(1) },
++            daemonAvailable = daemonAvailable,
++            scanFailed = scanFailed,
++        )
+
+diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
+--- a/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
++++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
+@@ -259,6 +259,12 @@
+-        .filter {
+-          getPackageInfoWithComponents(
+-                  it.packageName, MATCH_ALL_FLAGS, it.applicationInfo!!.uid / PER_USER_RANGE)
+-              ?.fetchProcesses()
+-              ?.isNotEmpty() == true
+-        }
++        .filter { pkg ->
++          val components =
++              getPackageInfoWithComponents(
++                  pkg.packageName, MATCH_ALL_FLAGS, pkg.applicationInfo!!.uid / PER_USER_RANGE)
++          if (components == null) {
++            // Unknown after a failed lookup is not an empty process list.
++            Log.w(TAG, "Component lookup failed for ${pkg.packageName}; retaining scope entry")
++            true
++          } else {
++            components.fetchProcesses().isNotEmpty()
++          }
++        }
