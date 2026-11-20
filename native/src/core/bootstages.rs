@@ -15,6 +15,8 @@ use base::{BufReadExt, FsPathBuilder, ResultExt, Utf8CStrBuf, cstr, error, info}
 use bitflags::bitflags;
 use nix::fcntl::OFlag;
 use std::io::BufReader;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
@@ -26,6 +28,46 @@ bitflags! {
         const LateStartDone = 1 << 1;
         const BootComplete = 1 << 2;
         const SafeMode = 1 << 3;
+    }
+}
+
+// Explicit user choice from the root-owned LSPosed/Vector provider selector.
+// Magisk remains the default on every normal boot unless the user selected
+// ReZygisk AND ReZygisk is actually present and enabled. Safe Mode always wins.
+const FXGA_PROVIDER_DIR: &str = "/data/adb/vector-provider";
+
+fn fxga_wants_rezygisk() -> bool {
+    let config = Path::new(FXGA_PROVIDER_DIR).join("choice");
+    if config.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
+        return false;
+    }
+    if std::fs::read_to_string(config).is_ok_and(|s| s.trim() == "rezygisk") {
+        for dir in ["/data/adb/modules/rezygisk", "/data/adb/modules_update/rezygisk"] {
+            let module = Path::new(dir);
+            if module.join("module.prop").is_file()
+                && !module.join("disable").exists()
+                && !module.join("remove").exists()
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+// The Vector root daemon checks this boot-scoped marker before presenting
+// ReZygisk as a safe option. It prevents an old custom v32 build from claiming
+// a provider switch will be honored when its normal-boot policy overrides it.
+fn fxga_mark_provider_aware_boot() {
+    let dir = Path::new(FXGA_PROVIDER_DIR);
+    if dir.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
+        return;
+    }
+    if std::fs::create_dir_all(dir).is_ok() {
+        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        if let Ok(id) = std::fs::read_to_string("/proc/sys/kernel/random/boot_id") {
+            let _ = std::fs::write(dir.join("magisk-provider-aware-boot-id"), id.trim());
+        }
     }
 }
 
@@ -153,10 +195,18 @@ impl MagiskD {
         }
 
         exec_common_scripts(cstr!("post-fs-data"));
-        // FXGA: enable Zygisk on every normal boot; Safe Mode above exits
-        // before this point and retains emergency module disable behavior.
-        self.set_db_setting(DbEntryKey::ZygiskConfig, 1).log_ok();
-        self.zygisk_enabled.store(true, Ordering::Release);
+        // The FXGA/Vector provider switch is explicitly opt-in. Preserve the
+        // original always-on Zygisk policy unless ReZygisk is selected AND
+        // installed and enabled. In all cases Safe Mode already returned above.
+        let use_rezygisk = fxga_wants_rezygisk();
+        let builtin_enabled = !use_rezygisk;
+        self.set_db_setting(DbEntryKey::ZygiskConfig, i32::from(builtin_enabled)).log_ok();
+        self.zygisk_enabled.store(builtin_enabled, Ordering::Release);
+        info!(
+            "* FXGA provider choice: {}",
+            if use_rezygisk { "ReZygisk" } else { "Magisk Zygisk" }
+        );
+        fxga_mark_provider_aware_boot();
         initialize_denylist();
         self.handle_modules();
         clean_mounts();
