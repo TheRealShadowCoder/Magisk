@@ -51,6 +51,36 @@ jobs:
             exit 1
           fi
 
+      - name: Unit-test Magisk Zygisk / ReZygisk provider matrix (API 37)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n support/LSPosed-Android17/provider/a17-provider-guard.sh
+          sh -n support/LSPosed-Android17/provider/test-provider-matrix.sh
+          (
+            cd support/LSPosed-Android17/provider
+            sh ./test-provider-matrix.sh
+          )
+
+      - name: Stage verified provider guard in the Zygisk module source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp support/LSPosed-Android17/provider/a17-provider-guard.sh vector/zygisk/module/a17-provider-guard.sh
+
+      - name: Apply Android 17 Zygisk provider installation compatibility patch
+        shell: bash
+        working-directory: vector
+        run: |
+          set -euo pipefail
+          patch="../support/LSPosed-Android17/patches/1110-android17-zygisk-provider-guard.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          sh -n zygisk/module/customize.sh
+          sh -n zygisk/module/a17-provider-guard.sh
+          grep -q 'a17_provider_preflight' zygisk/module/customize.sh
+          echo "Android 17 install-time dual-provider guard staged; runtime tests still required."
+
       - name: Apply experimental generation-retirement patch for Android 17
         shell: bash
         working-directory: vector
@@ -139,6 +169,15 @@ jobs:
           unzip -p "$release" daemon.apk > artifact/Vector-Android17-Daemon.apk
           test -s artifact/Vector-Android17-Manager.apk
           test -s artifact/Vector-Android17-Daemon.apk
+          for module_zip in artifact/Vector-v*-Release.zip artifact/Vector-v*-Debug.zip; do
+            unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-guard.sh'
+            unzip -Z1 "$module_zip" | grep -Fx 'a17-provider-guard.sh.sha256'
+            unzip -p "$module_zip" customize.sh | grep -q 'a17_provider_preflight'
+            unzip -p "$module_zip" a17-provider-guard.sh | grep -q 'a17_provider_evaluate'
+          done
+          printf '%s\n' 'Magisk built-in Zygisk: requires standalone provider OFF; API 37 device hook test pending' > artifact/ZYGISK_PROVIDER_MATRIX.txt
+          printf '%s\n' 'ReZygisk: requires Magisk built-in Zygisk OFF; API 37 zygote_next unresolved upstream' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
+          printf '%s\n' 'Only one active injection provider is supported. The guard does not toggle provider settings.' >> artifact/ZYGISK_PROVIDER_MATRIX.txt
           sha256sum artifact/*.zip artifact/*.apk > artifact/SHA256SUMS.txt
           git -C vector rev-parse HEAD > artifact/SOURCE_REVISION.txt
           cp API37_SOURCE_TESTS.json artifact/API37_SOURCE_TESTS.json
@@ -147,6 +186,8 @@ jobs:
           printf '%s\n' 'CANDIDATE manager discovery consistency; not upstream validated' >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/patches/1099-manager-discovery-consistency.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/patches/1099-fail-closed-on-missing-package-manager.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/patches/1110-android17-zygisk-provider-guard.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/provider/a17-provider-guard.sh >> artifact/APPLIED_SOURCE_PATCHES.txt
 
       - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
         shell: bash
@@ -173,6 +214,8 @@ jobs:
           GITHUB ACTIONS RESULT = PATCHED SOURCE BUILD + STATIC PACKAGE VERIFICATION ONLY.
           Candidate unmerged upstream PR #1024 applied to reduce obsolete module references.
           Android 17 runtime compatibility has NOT been certified.
+          Both Magisk built-in Zygisk and ReZygisk setups require independent on-device tests.
+          Magisk built-in Zygisk and ReZygisk must NOT be activated together.
           To verify a full port: boot on SDK 37, start Zygisk, verify daemon
           and manager operation, run real module hook, test system_server, and
           prove recovery from failed hooks. See validation kit.
