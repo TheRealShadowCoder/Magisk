@@ -83,6 +83,16 @@ a17_provider_preflight() {
     # The installer has also sourced a17-provider-control.sh. Source uses
     # the saved user choice, or Auto (default), and stages ONE provider for
     # the NEXT boot. It does not reboot the device.
+    # This menu manages Magisk built-in Zygisk or ReZygisk only. A third
+    # standalone injector must not remain active with either choice.
+    a17_other="$(a17_module_providers)"
+    case "$a17_other" in
+        ""|rezygisk) ;;
+        *)
+            ui_print "! Another standalone Zygisk provider is enabled: $a17_other"
+            ui_print "! Disable extra standalone injectors before switching."
+            return 15 ;;
+    esac
     a17_mode="$(a17_choice_read)"
     ui_print "- Android 17 provider preference: $a17_mode"
     a17_result="$(a17_apply "$a17_mode" 2>&1)"
