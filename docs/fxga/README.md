@@ -29,6 +29,13 @@ Implemented on this branch:
 | [ANDROID17_TEST_PLAN.md](ANDROID17_TEST_PLAN.md) | API 37 matrix, build instructions, tests and release blockers |
 | [SECURITY.md](SECURITY.md) | Threat model, root permissions, path and input validation |
 
+Validate a module settings manifest before distribution:
+
+```sh
+python tools/fxga/validate_manifest.py --self-test
+python tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
+```
+
 ## Essential developer workflow
 
 1. Clone the fork **including submodules** and check out the feature branch.
