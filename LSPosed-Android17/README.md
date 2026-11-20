@@ -75,3 +75,24 @@ To request a build, open GitHub Actions in this repo and run
 `lsposed-android17-build`. Do not flash a failing or untested artifact over
 a working framework; first ensure ADB/recovery access and disable the older
 LSPosed module.
+
+## Magisk built-in Zygisk / PerformanC ReZygisk (Android 17)
+
+Installation now includes a safety gate (source: [provider/README.md](provider/README.md))
+which checks API 37 and prevents **confirmed concurrent injector configurations**:
+
+- Magisk with built-in Zygisk enabled and ReZygisk disabled.
+- Magisk with built-in Zygisk disabled and ReZygisk enabled.
+- KernelSU/APatch with ReZygisk enabled and no other standalone injector.
+
+The guard never toggles root settings. It fails closed if it detects conflicting
+providers, and warns when Magisk's built-in setting cannot be verified.
+There are nine provider-matrix unit tests run in GitHub Actions.
+
+**Still unresolved:** [ReZygisk Android 17 zygote_next #374](https://github.com/PerformanC/ReZygisk/issues/374),
+live hook execution, daemon/system-server registration and three repeated
+boot stability tests **for each provider separately**. Two providers must not
+both inject Zygote; a single framework module supports *either* one.
+
+For diagnostics run `provider/Run-A52-A17-Zygisk-ReZygisk-Audit.ps1`
+from Windows. It creates one ZIP inside `C:\Users\skbus\Desktop\A52 Report`.
