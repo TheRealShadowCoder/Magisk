@@ -1,0 +1,6 @@
+id=fxga_adbdiag
+name=FXGA Android 17 ADB Diagnostics
+version=4.0
+versionCode=400
+author=FXGA
+description=Local root-authorized diagnostic CLI and bounded event journal

@@ -73,6 +73,11 @@ jobs:
           echo "$FXGA_BUILD_MODE" > out/FXGA_BUILD_MODE.txt
           printf '%s\n' 'Device testing on Android 17 API 37 remains required.' > out/FXGA_TEST_NOTICE.txt
 
+      - name: Package FXGA ADB module
+        run: |
+          (cd fxga/adb-module && zip -q -r ../../out/FXGA_Android17_ADB_Module.zip .)
+          test -s out/FXGA_Android17_ADB_Module.zip
+
       - name: Upload compiled APK and outputs
         uses: actions/upload-artifact@v7
         with:
