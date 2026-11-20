@@ -142,7 +142,7 @@ private fun FxgaCompatibilityActivity.CompatibilityPage() {
             Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Text("Zygisk: " + if (Info.isZygiskEnabled) "Active this boot" else "Not active this boot",
+            Text("Zygisk: " + (if (Info.isZygiskEnabled) "Active this boot" else "Not active this boot"),
                 style = MaterialTheme.typography.titleMedium)
             Text("Normal-boot policy: enabled. Magisk emergency Safe Mode remains functional.")
             Text(message)
@@ -159,7 +159,7 @@ private fun FxgaCompatibilityActivity.CompatibilityPage() {
             ) }.take(100).forEach { app ->
                 key(app.pkg) {
                     val isSelected = selected?.pkg == app.pkg
-                    Card(Modifier.fillMaxWidth(), onClick = { selected = app }) {
+                    Card(onClick = { selected = app }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(app.name, style = MaterialTheme.typography.titleMedium)
                             Text(app.pkg)
