@@ -1,9 +1,8 @@
-name: Build LSPosed descendant for Android 17
+name: Build and validate Android 17 Xposed framework (Vector)
 
 on:
   push:
-    branches:
-      - lsposed-android17-build
+    branches: [lsposed-android17-build]
     paths:
       - ".github/workflows/build-lsposed-android17.yml"
       - "LSPosed-Android17/**"
@@ -14,79 +13,122 @@ permissions:
 
 jobs:
   build:
-    name: Build Android 17 Zygisk module
     runs-on: ubuntu-24.04
     timeout-minutes: 110
     steps:
-      - name: Checkout Vector (maintained LSPosed-derived Android 17 engine)
+      - name: Checkout our build and verification files
+        uses: actions/checkout@v4
+        with:
+          path: support
+          persist-credentials: false
+
+      - name: Checkout pinned modern LSPosed descendant and all submodules
         uses: actions/checkout@v4
         with:
           repository: JingMatrix/Vector
-          ref: canary-3119
+          ref: 6f6b976e3315c158d501f743c3c609e80cae7ec8
           submodules: recursive
           fetch-depth: 0
+          path: vector
           persist-credentials: false
 
-      - name: Record source revision
+      - name: Verify fixed source revision and API 37 build configuration
+        shell: bash
+        working-directory: vector
         run: |
-          git rev-parse HEAD
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "6f6b976e3315c158d501f743c3c609e80cae7ec8"
+          grep -Eq 'val androidCompileSdkVersion = 37' build.gradle.kts
+          grep -Eq 'val androidTargetSdkVersion = 37' build.gradle.kts
           git submodule status --recursive
+          if git submodule status --recursive | grep -qE '^[-+]'; then
+            echo "::error::Missing or mismatched source submodule"
+            exit 1
+          fi
 
-      - name: Setup JDK 21
+      - name: Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
 
-      - name: Setup Gradle
+      - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Setup Android SDK
+      - name: Configure Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Ninja
+      - name: Configure ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
         with:
           version: 1.13.2
 
-      - name: Configure build
+      - name: Compile Android 17 Zygisk modules and manager
         shell: bash
+        working-directory: vector
         run: |
+          set -euo pipefail
           mkdir -p ~/.gradle
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
-          echo "android.native.buildOutput=verbose" >> ~/.gradle/gradle.properties
+          echo 'android.native.buildOutput=verbose' >> ~/.gradle/gradle.properties
+          echo 'org.gradle.parallel=true' >> ~/.gradle/gradle.properties
+          echo 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' >> ~/.gradle/gradle.properties
           rm -rf "$ANDROID_HOME/cmake"
-
-      - name: Compile Zygisk release and debug
-        shell: bash
-        run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon zipAll
 
-      - name: Verify module artifacts
+      - name: Extract both build variants and APK from module
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          files=(zygisk/release/Vector-v*-Release.zip zygisk/release/Vector-v*-Debug.zip)
-          [ "${#files[@]}" -eq 2 ] || { echo "Expected 2 module zips, found ${#files[@]}"; exit 1; }
-          for file in "${files[@]}"; do
-            unzip -t "$file" | tail -2
-            unzip -p "$file" module.prop | grep -E '^(id|name|version|versionCode)='
-            sha256sum "$file"
-          done
-          sha256sum "${files[@]}" > SHA256SUMS.txt
-          git rev-parse HEAD > BUILT_FROM_COMMIT.txt
+          mkdir -p artifact
+          release=$(find vector/zygisk/release -maxdepth 1 -name 'Vector-v*-Release.zip' -print -quit)
+          debug=$(find vector/zygisk/release -maxdepth 1 -name 'Vector-v*-Debug.zip' -print -quit)
+          test -n "$release"
+          test -n "$debug"
+          cp "$release" artifact/
+          cp "$debug" artifact/
+          unzip -p "$release" manager.apk > artifact/Vector-Android17-Manager.apk
+          unzip -p "$release" daemon.apk > artifact/Vector-Android17-Daemon.apk
+          test -s artifact/Vector-Android17-Manager.apk
+          test -s artifact/Vector-Android17-Daemon.apk
+          sha256sum artifact/*.zip artifact/*.apk > artifact/SHA256SUMS.txt
+          git -C vector rev-parse HEAD > artifact/SOURCE_REVISION.txt
 
-      - name: Upload installable Android 17 Zygisk modules
+      - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 support/LSPosed-Android17/ci_verify.py \
+            "$(ls artifact/Vector-v*-Release.zip)" artifact/ANDROID17_RELEASE_STATIC_REPORT.json
+          python3 support/LSPosed-Android17/ci_verify.py \
+            "$(ls artifact/Vector-v*-Debug.zip)" artifact/ANDROID17_DEBUG_STATIC_REPORT.json
+
+      - name: Verify APK signing (not a runtime compatibility guarantee)
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          test -n "$signer"
+          "$signer" verify --verbose artifact/Vector-Android17-Manager.apk
+          "$signer" verify --verbose artifact/Vector-Android17-Daemon.apk
+
+      - name: Record certification boundary
+        shell: bash
+        run: |
+          cat > artifact/ANDROID17_DEVICE_TEST_REQUIRED.txt <<'EOF'
+          GITHUB ACTIONS RESULT = SOURCE BUILD + STATIC PACKAGE VERIFICATION ONLY.
+          Android 17 runtime compatibility has NOT been certified.
+          To verify a full port: boot on SDK 37, start Zygisk, verify daemon
+          and manager operation, run real module hook, test system_server, and
+          prove recovery from failed hooks. See validation kit.
+          Original LSPosed 1.9.2 source has NOT been ported by this workflow;
+          it builds the maintained LSPosed-derived Vector framework.
+          EOF
+
+      - name: Upload verification-gated build output
         uses: actions/upload-artifact@v4
         with:
-          name: LSPosed-Android17-Vector-3119-Zygisk
+          name: Android17-Vector-3119-UNVERIFIED-RUNTIME
+          path: artifact/
           if-no-files-found: error
           retention-days: 30
-          path: |
-            zygisk/release/Vector-v*-Release.zip
-            zygisk/release/Vector-v*-Debug.zip
-            SHA256SUMS.txt
-            BUILT_FROM_COMMIT.txt
