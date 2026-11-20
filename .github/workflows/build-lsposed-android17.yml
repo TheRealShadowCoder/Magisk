@@ -247,8 +247,12 @@ jobs:
           set -euo pipefail
           signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
           test -n "$signer"
-          "$signer" verify --verbose artifact/Vector-Android17-Manager.apk
-          "$signer" verify --verbose artifact/Vector-Android17-Daemon.apk
+          # Android 17 / API 37 is the only supported target for this port.
+          # These embedded APKs may use v2/v3 signatures without legacy JAR v1
+          # META-INF/MANIFEST.MF. Requiring v1 is inappropriate for API 37,
+          # but a real v2/v3 signature must still verify against the signer.
+          "$signer" verify --min-sdk-version 37 --verbose --print-certs artifact/Vector-Android17-Manager.apk
+          "$signer" verify --min-sdk-version 37 --verbose --print-certs artifact/Vector-Android17-Daemon.apk
 
       - name: Record certification boundary
         shell: bash
