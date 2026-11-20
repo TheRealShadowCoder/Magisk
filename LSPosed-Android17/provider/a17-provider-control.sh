@@ -170,6 +170,12 @@ a17_apply() {
     a17_prompt_needed=yes
   fi
   [ "$a17_old" != unknown ] || { echo "error=Magisk Zygisk state unknown"; return 31; }
+  a17_change_needed=no
+  if [ "$a17_target" = magisk ]; then
+    if [ "$a17_old" != on ] || a17_rz_enabled; then a17_change_needed=yes; fi
+  else
+    if [ "$a17_old" = on ] || ! a17_rz_enabled; then a17_change_needed=yes; fi
+  fi
   a17_old_current=no
   a17_old_next=no
   [ -e "$A17_RZ/disable" ] && a17_old_current=yes
@@ -209,7 +215,9 @@ a17_apply() {
     echo "error=provider choice was not saved; previous provider restored where possible"
     return 36
   fi
-  a17_bootid > "$A17_BOOT"
+  # A preference-only change with the correct injector already configured
+  # does not need a reboot. Preserve an earlier pending reboot if there is one.
+  if [ "$a17_change_needed" = yes ]; then a17_bootid > "$A17_BOOT"; fi
   if [ "$2" = installer ]; then
     if [ "$a17_prompt_needed" = yes ]; then touch "$A17_PROMPT"; fi
   else
