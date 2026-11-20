@@ -28,68 +28,65 @@ jobs:
         with:
           is-asset-build: true
 
-      - name: Select signed release or explicit debug build
+      - name: Restore the existing FXGA release key and verify identity
         env:
           KEYSTORE_B64: ${{ secrets.MAGISK_KEYSTORE_B64 }}
           STORE_PASS: ${{ secrets.MAGISK_KEYSTORE_PASS }}
           KEY_ALIAS: ${{ secrets.MAGISK_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.MAGISK_KEY_PASS }}
         run: |
-          set -eu
-          if [ -n "$KEYSTORE_B64" ] && [ -n "$STORE_PASS" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASS" ]; then
-            printf '%s' "$KEYSTORE_B64" | base64 --decode > signing.jks
-            printf 'version=32.0-fxga\nabiList=armeabi-v7a,arm64-v8a\noutdir=out\nkeyStore=signing.jks\nkeyStorePass=%s\nkeyAlias=%s\nkeyPass=%s\n' "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS" > config.prop
-            echo "FXGA_BUILD_MODE=release" >> "$GITHUB_ENV"
-            echo 'Building release signed with custom repository keystore.'
-          else
-            printf 'version=32.0-fxga-debug\nabiList=armeabi-v7a,arm64-v8a\noutdir=out\n' > config.prop
-            echo "FXGA_BUILD_MODE=debug" >> "$GITHUB_ENV"
-            echo 'Custom release signing secrets absent or incomplete. Building a DEBUG APK instead.'
+          set -euo pipefail
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo 'ERROR: all four existing MAGISK signing secrets are required. No debug fallback or new key permitted.' >&2
+            exit 1
           fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > signing.jks
+          chmod 600 signing.jks
+          bash scripts/fxga/verify-release-signer.sh keystore
+          printf 'version=32.0-fxga\nabiList=armeabi-v7a,arm64-v8a\noutdir=out\nkeyStore=signing.jks\nkeyStorePass=%s\nkeyAlias=%s\nkeyPass=%s\n' "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS" > config.prop
+          chmod 600 config.prop
+          echo "FXGA_BUILD_MODE=release" >> "$GITHUB_ENV"
 
-      - name: Validate ADB module scripts
+      - name: Validate ADB module scripts and signing guard
         run: |
           for file in fxga/adb-module/*.sh; do bash -n "$file"; done
+          bash -n scripts/fxga/verify-release-signer.sh
 
       - name: Validate FXGA module settings schema
         run: |
           python3 tools/fxga/validate_manifest.py --self-test
           python3 tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
 
-      - name: Build Magisk manager and native components
+      - name: Build Magisk with pinned release signer
         env:
-          # The hosted runner currently has an incompatible sccache/Rust proxy.
-          # Native compilation works without it; do not cache a broken wrapper.
           FXGA_DISABLE_SCCACHE: "1"
-        run: |
-          if [ "$FXGA_BUILD_MODE" = release ]; then
-            ./build.py -vr all
-          else
-            ./build.py -v all
-          fi
+        run: ./build.py -vr all
 
-      - name: Stop Gradle and erase signing material
+      - name: Stop Gradle and remove temporary signing material
         if: always()
         run: |
           ./app/gradlew --stop || true
           rm -f signing.jks config.prop
 
-      - name: Verify and label outputs
+      - name: Verify and label build outputs
         run: |
-          find out -type f -maxdepth 3 -print
-          test -n "$(find out -name '*.apk' -type f -print -quit)"
-          echo "$FXGA_BUILD_MODE" > out/FXGA_BUILD_MODE.txt
-          printf '%s\n' 'Device testing on Android 17 API 37 remains required.' > out/FXGA_TEST_NOTICE.txt
+          find out -maxdepth 3 -type f -print
+          test -s out/app-release.apk
+          echo "release" > out/FXGA_BUILD_MODE.txt
+          printf '%s\n' 'Android 17 handset testing is still required.' > out/FXGA_TEST_NOTICE.txt
+
+      - name: Verify APK cryptographic signature and pinned identity
+        run: bash scripts/fxga/verify-release-signer.sh apk out/app-release.apk
 
       - name: Package FXGA ADB module
         run: |
           (cd fxga/adb-module && zip -q -r ../../out/FXGA_Android17_ADB_Module.zip .)
           test -s out/FXGA_Android17_ADB_Module.zip
 
-      - name: Upload compiled APK and outputs
+      - name: Upload verified FXGA release outputs
         uses: actions/upload-artifact@v7
         with:
-          name: magisk-fxga-v32-${{ env.FXGA_BUILD_MODE }}
+          name: magisk-fxga-v32-release
           path: out/**
           if-no-files-found: error
           retention-days: 14

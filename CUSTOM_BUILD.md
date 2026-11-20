@@ -1,19 +1,38 @@
-# Custom v32 GitHub Actions build
+# FXGA Magisk release signing — locked identity
 
-This fork needs its own long-lived signing key. The original Magisk private key cannot be recovered from `Magisk-v31.1.apk`; the public signing certificate is all that APK contains. This workflow uses a new key and signs the manager and flashable ZIP through Magisk's `config.prop` build settings.
+Every future FXGA Magisk patch, Android 17 fix, feature and version upgrade **must use the same custom private signing key** used for the first successfully compiled FXGA v32 release.
 
-## Before running the workflow
+## Public certificate fingerprint
 
-1. The supplied target is [TheRealShadowCoder/Magisk](https://github.com/TheRealShadowCoder/Magisk), currently public. Push this fork, including its submodules and `.github/workflows/build-v32-custom.yml`, only after the Hide-app port is complete. Source and commit history will be visible to everyone.
-2. Generate a signing key on your PC and keep a protected offline backup. In PowerShell, run `keytool -genkeypair -v -keystore .\magisk-custom-release.jks -alias magiskcustom -keyalg RSA -keysize 2048 -validity 10000 -storetype JKS`. Enter and record a strong store password and key password at the prompts.
-3. Convert the keystore to one-line Base64 with `[Convert]::ToBase64String([IO.File]::ReadAllBytes('.\magisk-custom-release.jks'))`.
-4. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add:
-   - `MAGISK_KEYSTORE_B64`: the Base64 output from the previous step
-   - `MAGISK_KEYSTORE_PASS`: the keystore password
-   - `MAGISK_KEY_ALIAS`: `magiskcustom`
-   - `MAGISK_KEY_PASS`: the key password
-5. Open **Actions → Magisk custom v32 build → Run workflow**. When complete, download the `magisk-v32-custom` artifact.
+```text
+f4d7d3bddca7f03c7be193febd4afeaf53a5d4960ca9b70d32527c2d2b3cbf6d
+```
 
-Do not commit the keystore or passwords. Losing the private key means future builds cannot update-install over an APK signed with this key; users would need to uninstall the old manager first. A custom-signed APK and its paired Magisk core must be used together because the daemon checks the manager signing certificate.
+This SHA-256 fingerprint was extracted from the X.509 certificate embedded in `FXGA_Magisk_v32_Android17_Release.apk`. The fingerprint is public. It is **not** the private key, the password, the APK checksum, or the certificate of official Magisk by John Wu.
 
-The Hide-app feature port is not part of this workflow file by itself. It must be restored in the application and native core before a build can provide that behavior.
+## Release requirements
+
+1. Always use the existing GitHub Actions secret `MAGISK_KEYSTORE_B64` to restore the original custom release keystore, with its existing alias and passwords.
+2. Never generate a fresh signing key to fix builds, change a version, or adjust a feature. The private key cannot be recovered from a public certificate or APK.
+3. Never commit or upload private signing material, keystore passwords or the keystore itself. Maintain a secure encrypted offline backup.
+4. Stop the release workflow if any signing secret is missing or the key's public certificate differs from the pinned SHA-256 fingerprint. Do **not** fall back to debug signing.
+5. Use Android `apksigner` to verify the finished APK, including v2/v3 signature, and reject it if the embedded certificate changes.
+6. Do not change the app's package ID or Magisk's manager/core signing relationship without an explicit migration plan; a matching certificate alone does not guarantee an installable update.
+7. If the pinned identity check fails, restore the original keystore or investigate the change. Do **not** edit the fingerprint to match an unrecognized new key.
+
+## Current secret names
+
+Retain these exact existing values in **GitHub → Settings → Secrets and variables → Actions**:
+
+- `MAGISK_KEYSTORE_B64` — Base64-encoded existing custom signing keystore.
+- `MAGISK_KEYSTORE_PASS` — original keystore password.
+- `MAGISK_KEY_ALIAS` — original key alias.
+- `MAGISK_KEY_PASS` — original private-key password.
+
+The release workflow restores and checks the keystore, compiles Magisk, removes temporary signing material, verifies `out/app-release.apk` against the pinned public certificate, and only then publishes a build artifact.
+
+The enforcement script is `scripts/fxga/verify-release-signer.sh`. The pinned public digest is `signing/FXGA_RELEASE_CERT_SHA256.txt`.
+
+## Original Magisk APK limitation
+
+Official topjohnwu Magisk APKs use a different publisher signing identity. This policy preserves **FXGA custom-key continuity only**; it cannot reuse or recover the official signing private key. Future FXGA releases should use the same FXGA keystore and preserve Magisk's paired app/core signing expectations.
