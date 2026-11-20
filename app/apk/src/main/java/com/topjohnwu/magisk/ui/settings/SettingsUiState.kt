@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 sealed interface SettingsDialog {
     data class CustomChannelUrl(val initialUrl: String) : SettingsDialog
     data class DownloadPath(val initialPath: String) : SettingsDialog
+    data class HideApp(val initialLabel: String) : SettingsDialog
 }
 
 @Immutable
@@ -36,6 +37,8 @@ data class SettingsUiState(
     val downloadPath: String = "",
     val downloadPathDisplay: String = "",
     val randomPackageNameEnabled: Boolean = true,
+    val canHideApp: Boolean = false,
+    val magiskAppHidden: Boolean = false,
 
     // Magisk Section
     val zygiskEnabled: Boolean = false,

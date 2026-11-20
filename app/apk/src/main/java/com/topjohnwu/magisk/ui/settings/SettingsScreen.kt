@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -32,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import android.app.Activity
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -82,6 +85,9 @@ fun SettingsScreen(
         onOpenDownloadPathDialog = viewModel::openDownloadPathDialog,
         onSaveDownloadPath = viewModel::saveDownloadPath,
         onToggleRandomPackageName = viewModel::setRandomPackageName,
+        onHideApp = viewModel::openHideAppDialog,
+        onRestoreApp = { (context as? Activity)?.let(viewModel::restoreMagiskApp) },
+        onHideAppConfirm = { label -> (context as? Activity)?.let { viewModel.hideApp(it, label) } },
         onCreateHosts = viewModel::createHosts,
         onToggleZygisk = viewModel::toggleZygisk,
         onToggleDenyList = viewModel::toggleDenyList,
@@ -116,6 +122,9 @@ fun SettingsContent(
     onOpenDownloadPathDialog: () -> Unit,
     onSaveDownloadPath: (String) -> Unit,
     onToggleRandomPackageName: (Boolean) -> Unit,
+    onHideApp: () -> Unit,
+    onRestoreApp: () -> Unit,
+    onHideAppConfirm: (String) -> Unit,
     onCreateHosts: () -> Unit,
     onToggleZygisk: (Boolean) -> Unit,
     onToggleDenyList: (Boolean) -> Unit,
@@ -183,6 +192,8 @@ fun SettingsContent(
                             onToggleCheckUpdate = onToggleCheckUpdate,
                             onOpenDownloadPathDialog = onOpenDownloadPathDialog,
                             onToggleRandomPackageName = onToggleRandomPackageName,
+                            onHideApp = onHideApp,
+                            onRestoreApp = onRestoreApp,
                         )
                     }
                 }
@@ -198,6 +209,8 @@ fun SettingsContent(
                             onToggleCheckUpdate = onToggleCheckUpdate,
                             onOpenDownloadPathDialog = onOpenDownloadPathDialog,
                             onToggleRandomPackageName = onToggleRandomPackageName,
+                            onHideApp = onHideApp,
+                            onRestoreApp = onRestoreApp,
                         )
                     }
                 }
@@ -241,6 +254,27 @@ fun SettingsContent(
                 initialPath = dialog.initialPath,
                 onConfirm = onSaveDownloadPath,
                 onDismiss = onDismissDialog,
+            )
+        }
+        is SettingsDialog.HideApp -> {
+            var label by rememberSaveable(dialog.initialLabel) { mutableStateOf(dialog.initialLabel) }
+            AlertDialog(
+                onDismissRequest = onDismissDialog,
+                title = { Text(stringResource(CoreR.string.hide_app_title)) },
+                text = {
+                    OutlinedTextField(
+                        value = label,
+                        onValueChange = { label = it.take(32) },
+                        label = { Text(stringResource(CoreR.string.hide_app_label)) },
+                        singleLine = true,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { onHideAppConfirm(label) }) { Text(stringResource(CoreR.string.hide)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissDialog) { Text(stringResource(CoreR.string.cancel)) }
+                },
             )
         }
         null -> Unit
@@ -307,6 +341,8 @@ private fun AppSettingsSection(
     onToggleCheckUpdate: (Boolean) -> Unit,
     onOpenDownloadPathDialog: () -> Unit,
     onToggleRandomPackageName: (Boolean) -> Unit,
+    onHideApp: () -> Unit,
+    onRestoreApp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     SmallTitle(text = stringResource(CoreR.string.home_app_title))
@@ -348,6 +384,18 @@ private fun AppSettingsSection(
             checked = uiState.dohEnabled,
             onCheckedChange = onToggleDoh
         )
+
+        if (uiState.canHideApp) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            SettingsArrow(
+                title = stringResource(if (uiState.magiskAppHidden) CoreR.string.restore_magisk_app else CoreR.string.hide_magisk_app),
+                summary = stringResource(if (uiState.magiskAppHidden) CoreR.string.restore_magisk_app_summary else CoreR.string.hide_magisk_app_summary),
+                onClick = if (uiState.magiskAppHidden) onRestoreApp else onHideApp,
+            )
+        }
 
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),

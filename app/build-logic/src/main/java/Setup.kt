@@ -176,6 +176,11 @@ fun Project.setupCoreLib() {
                     include("util_functions.sh", "boot_patch.sh", "addon.d.sh",
                         "app_functions.sh", "uninstaller.sh", "module_installer.sh")
                 }
+                val stubApkTask = tasks.getByPath(":stub:transform${variantCapped}Apk")
+                from(stubApkTask) {
+                    include { it.name.endsWith(".apk") }
+                    rename { "stub.apk" }
+                }
                 filesMatching("**/util_functions.sh") {
                     filter {
                         it.replace(

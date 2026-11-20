@@ -53,6 +53,7 @@ object Const {
     object Key {
         // intents
         const val OPEN_SECTION = "section"
+        const val PREV_CONFIG = "previous_config"
     }
 
     object Value {

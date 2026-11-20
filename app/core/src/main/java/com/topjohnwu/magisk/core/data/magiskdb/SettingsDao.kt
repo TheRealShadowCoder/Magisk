@@ -13,8 +13,19 @@ class SettingsDao : MagiskDB() {
         exec(query)
     }
 
+    suspend fun put(key: String, value: String) {
+        val kv = mapOf("key" to key, "value" to value)
+        val query = "REPLACE INTO ${Table.SETTINGS} ${kv.toQuery()}"
+        exec(query)
+    }
+
     suspend fun fetch(key: String, default: Int = -1): Int {
         val query = "SELECT value FROM ${Table.SETTINGS} WHERE key=\"$key\" LIMIT 1"
         return exec(query) { it["value"]?.toInt() }.firstOrNull() ?: default
+    }
+
+    suspend fun fetch(key: String, default: String): String {
+        val query = "SELECT value FROM ${Table.SETTINGS} WHERE key=\"$key\" LIMIT 1"
+        return exec(query) { it["value"] }.firstOrNull() ?: default
     }
 }

@@ -1,6 +1,7 @@
 package com.topjohnwu.magisk.ui.settings
 
 import android.os.Build
+import android.app.Activity
 import android.widget.Toast
 import androidx.lifecycle.viewModelScope
 import com.topjohnwu.magisk.arch.BaseViewModel
@@ -9,6 +10,7 @@ import com.topjohnwu.magisk.core.Config
 import com.topjohnwu.magisk.core.Const
 import com.topjohnwu.magisk.core.Info
 import com.topjohnwu.magisk.core.R as CoreR
+import com.topjohnwu.magisk.core.tasks.AppMigration
 import com.topjohnwu.magisk.core.ktx.toast
 import com.topjohnwu.magisk.core.model.ColorMode
 import com.topjohnwu.magisk.core.utils.LocaleSetting
@@ -60,6 +62,8 @@ class SettingsViewModel : BaseViewModel() {
             downloadPath = Config.downloadDir,
             downloadPathDisplay = MediaStoreUtils.fullPath(Config.downloadDir),
             randomPackageNameEnabled = Config.randName,
+            canHideApp = !Info.isHeadlessSystemUser,
+            magiskAppHidden = Config.suManager.isNotBlank(),
 
             zygiskEnabled = Config.zygisk,
             isZygiskPendingReboot = Config.zygisk != Info.isZygiskEnabled,
@@ -166,6 +170,21 @@ class SettingsViewModel : BaseViewModel() {
     fun setRandomPackageName(enabled: Boolean) {
         Config.randName = enabled
         _uiState.update { it.copy(randomPackageNameEnabled = enabled) }
+    }
+
+    fun openHideAppDialog() {
+        _uiState.update { it.copy(activeDialog = SettingsDialog.HideApp("Magisk")) }
+    }
+
+    fun hideApp(activity: Activity, label: String) {
+        _uiState.update { it.copy(activeDialog = null) }
+        viewModelScope.launch {
+            AppMigration.hide(activity, label.trim().ifBlank { "Magisk" })
+        }
+    }
+
+    fun restoreMagiskApp(activity: Activity) {
+        viewModelScope.launch { AppMigration.restore(activity) }
     }
 
     fun createHosts() {

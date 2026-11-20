@@ -87,6 +87,8 @@ impl DbEntryKey {
             DbEntryKey::DenylistConfig => "denylist",
             DbEntryKey::ZygiskConfig => "zygisk",
             DbEntryKey::BootloopCount => "bootloop",
+            DbEntryKey::ManagerPackage => "requester",
+            DbEntryKey::ManagerCert => "manager_cert",
             _ => "",
         }
     }
@@ -256,6 +258,22 @@ impl MagiskD {
         .log()
         .ok();
         val
+    }
+
+    pub fn get_db_string(&self, key: DbEntryKey, default: &str) -> String {
+        let mut value = default.to_string();
+        let mut read_value = |_: &[String], values: &DbValues| {
+            value = values.get_text(0).to_string();
+        };
+        self.db_exec_with_rows(
+            "SELECT value FROM settings WHERE key=?",
+            &[Text(key.to_str())],
+            &mut read_value,
+        )
+        .sql_result()
+        .log()
+        .ok();
+        value
     }
 
     pub fn get_db_settings(&self) -> SqliteResult<DbSettings> {

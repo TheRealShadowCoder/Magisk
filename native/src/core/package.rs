@@ -1,9 +1,9 @@
 use crate::consts::{APP_DATA_DIR, APP_PACKAGE_NAME, MAGISK_VER_CODE, TRUSTED_CERT};
 use crate::daemon::{AID_APP_END, AID_APP_START, MagiskD, to_app_id};
+use crate::ffi::DbEntryKey;
 #[cfg(all(feature = "check-signature", not(debug_assertions)))]
 use crate::ffi::uninstall_pkg;
 use base::WalkResult::{Abort, Continue, Skip};
-use base::const_format::concatcp;
 use base::{
     BufReadExt, Directory, FsPathBuilder, LoggedResult, ReadExt, ResultExt, Utf8CStrBuf,
     Utf8CString, cstr, error, pre_order_walk,
@@ -19,6 +19,24 @@ const EOCD_MAGIC: u32 = 0x06054B50;
 const APK_SIGNING_BLOCK_MAGIC: [u8; 16] = *b"APK Sig Block 42";
 const SIGNATURE_SCHEME_V2_MAGIC: u32 = 0x7109871A;
 const PACKAGES_XML: &str = "/data/system/packages.xml";
+
+fn decode_hex(input: &str) -> Vec<u8> {
+    if input.len() % 2 != 0 {
+        return Vec::new();
+    }
+    input.as_bytes().chunks_exact(2).map(|pair| {
+        let digit = |c: u8| match c {
+            b'0'..=b'9' => Some(c - b'0'),
+            b'a'..=b'f' => Some(c - b'a' + 10),
+            b'A'..=b'F' => Some(c - b'A' + 10),
+            _ => None,
+        };
+        match (digit(pair[0]), digit(pair[1])) {
+            (Some(a), Some(b)) => (a << 4) | b,
+            _ => 0,
+        }
+    }).collect()
+}
 
 macro_rules! bad_apk {
     ($msg:literal) => {
@@ -147,14 +165,15 @@ fn read_certificate(apk: &mut File) -> Vec<u8> {
     res.log().unwrap_or(vec![])
 }
 
-fn find_apk_path() -> Option<Utf8CString> {
+fn find_apk_path(package: &str) -> Option<Utf8CString> {
     let mut buf = Utf8CString::default();
+    let prefix = format!("{package}-");
     pre_order_walk(cstr!("/data/app"), |e, path| {
         if !e.is_dir() {
             return Ok(Skip);
         }
         let name = e.name();
-        if name.starts_with(concatcp!(APP_PACKAGE_NAME, "-")) {
+        if name.starts_with(&prefix) {
             // Found the APK path, we can abort now
             buf.append_path(path).append_path("base.apk");
             return Ok(Abort);
@@ -182,16 +201,17 @@ fn get_package_uid(user: i32, pkg: &str) -> i32 {
 pub struct TrackedFile {
     path: Utf8CString,
     timestamp: Duration,
+    package: String,
 }
 
 impl TrackedFile {
-    fn new(path: Utf8CString) -> TrackedFile {
+    fn new(path: Utf8CString, package: &str) -> TrackedFile {
         let attr = match path.get_attr() {
             Ok(attr) => attr,
             Err(_) => return TrackedFile::default(),
         };
         let timestamp = Duration::new(attr.st.st_ctime as u64, attr.st.st_ctime_nsec as u32);
-        TrackedFile { path, timestamp }
+        TrackedFile { path, timestamp, package: package.to_string() }
     }
 
     fn is_same(&self) -> bool {
@@ -207,8 +227,8 @@ impl TrackedFile {
     }
 }
 
-fn check_apk(tracked: &mut TrackedFile) -> bool {
-    let Some(apk) = find_apk_path() else {
+fn check_apk(tracked: &mut TrackedFile, package: &str, expected_cert: &[u8]) -> bool {
+    let Some(apk) = find_apk_path(package) else {
         return false;
     };
 
@@ -217,7 +237,7 @@ fn check_apk(tracked: &mut TrackedFile) -> bool {
         Err(_) => return false,
     };
 
-    if cert.is_empty() || (!TRUSTED_CERT.is_empty() && cert != TRUSTED_CERT) {
+    if cert.is_empty() || (!expected_cert.is_empty() && cert != expected_cert) {
         error!("pkg: APK signature mismatch: {}", apk);
         #[cfg(all(feature = "check-signature", not(debug_assertions)))]
         {
@@ -226,29 +246,37 @@ fn check_apk(tracked: &mut TrackedFile) -> bool {
         }
     }
 
-    *tracked = TrackedFile::new(apk);
+    *tracked = TrackedFile::new(apk, package);
     true
 }
 
 impl MagiskD {
     pub fn get_manager_uid(&self, user: i32) -> i32 {
+        let package = self.get_db_string(DbEntryKey::ManagerPackage, APP_PACKAGE_NAME);
+        let package = if package.is_empty() { APP_PACKAGE_NAME } else { package.as_str() };
+        let cert_hex = self.get_db_string(DbEntryKey::ManagerCert, "");
+        let expected_cert = if cert_hex.is_empty() {
+            TRUSTED_CERT.to_vec()
+        } else {
+            decode_hex(&cert_hex)
+        };
         let mut tracked = self.manager_info.lock();
-        if tracked.is_same() {
+        if tracked.is_same() && tracked.package == package {
             return if &tracked.path == PACKAGES_XML {
                 // no APK
                 -1
             } else {
                 // APK is still the same
-                get_package_uid(user, APP_PACKAGE_NAME)
+                get_package_uid(user, package)
             };
         }
 
-        if check_apk(&mut tracked) {
-            return get_package_uid(user, APP_PACKAGE_NAME);
+        if check_apk(&mut tracked, package, &expected_cert) {
+            return get_package_uid(user, package);
         }
 
         // If we cannot find any manager, track packages.xml for new package installs
-        *tracked = TrackedFile::new(PACKAGES_XML.into());
+        *tracked = TrackedFile::new(PACKAGES_XML.into(), package);
         -1
     }
 

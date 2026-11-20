@@ -1,0 +1,55 @@
+name: Magisk custom v32 build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out fork and submodules
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Magisk build environment
+        uses: ./.github/actions/setup
+        with:
+          is-asset-build: true
+
+      - name: Configure custom signing
+        env:
+          KEYSTORE_B64: ${{ secrets.MAGISK_KEYSTORE_B64 }}
+          STORE_PASS: ${{ secrets.MAGISK_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.MAGISK_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.MAGISK_KEY_PASS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo 'Add all four MAGISK_KEYSTORE_* GitHub Actions secrets before running this workflow.' >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > signing.jks
+          printf 'version=32.0-custom\nabiList=arm64-v8a\noutdir=out\nkeyStore=signing.jks\nkeyStorePass=%s\nkeyAlias=%s\nkeyPass=%s\n' "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS" > config.prop
+
+      - name: Build release artifacts
+        run: ./build.py -vr all
+
+      - name: Stop Gradle daemon and remove signing material
+        if: always()
+        run: |
+          ./app/gradlew --stop || true
+          rm -f signing.jks config.prop
+
+      - name: Collect build outputs
+        run: |
+          test -n "$(find out -type f -print -quit)"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: magisk-v32-custom
+          path: out/**
+          if-no-files-found: error

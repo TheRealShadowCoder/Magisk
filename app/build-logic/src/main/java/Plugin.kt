@@ -4,7 +4,10 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.provideDelegate
 import java.io.File
 import java.util.Properties
+import java.util.Random
 val ABI_SUPPORT_LIST = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64", "riscv64")
+val RAND_SEED = if (System.getenv("CI") != null) 42 else 0
+lateinit var RANDOM: Random
 
 private val props = Properties()
 
@@ -19,6 +22,7 @@ object Config {
     // Properties from config.prop and flags.prop, may be null
     val version: String get() = get("version") ?: "null"
     val abiList: List<String> get() = get("abiList")?.split(",") ?: ABI_SUPPORT_LIST
+    val stubVersion: String get() = get("magisk.stubVersion") ?: "40"
 
     // Properties from gradle.properties, should always exist
     val versionCode: Int get() = get("magisk.versionCode")!!.toInt()
@@ -34,6 +38,7 @@ class MagiskPlugin : Plugin<Project> {
     override fun apply(project: Project) = project.applyPlugin()
 
     private fun Project.applyPlugin() {
+        initRandom(rootProject.file("dict.txt"))
         props.clear()
 
         // Get gradle properties relevant to Magisk

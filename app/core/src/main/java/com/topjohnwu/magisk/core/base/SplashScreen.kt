@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import com.topjohnwu.magisk.core.Config
+import com.topjohnwu.magisk.core.Const
 import com.topjohnwu.magisk.core.JobService
 import com.topjohnwu.magisk.core.di.ServiceLocator
 import com.topjohnwu.magisk.core.utils.RootUtils
@@ -62,7 +63,7 @@ class SplashController<T>(private val activity: T)
     }
 
     private fun T.initializeApp() {
-        Config.init()
+        Config.init(activity.intent.getBundleExtra(Const.Key.PREV_CONFIG))
 
         Notifications.setup()
         JobService.schedule(this)

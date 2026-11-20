@@ -1,5 +1,6 @@
 package com.topjohnwu.magisk.core
 
+import android.os.Bundle
 import androidx.core.content.edit
 import com.topjohnwu.magisk.core.di.ServiceLocator
 import com.topjohnwu.magisk.core.model.ColorMode
@@ -22,6 +23,9 @@ object Config : PreferenceConfig, DBConfig {
         const val SU_BIOMETRIC = "su_biometric"
         const val ZYGISK = "zygisk"
         const val BOOTLOOP = "bootloop"
+        const val SU_MANAGER = "requester"
+        const val SU_MANAGER_CERT = "manager_cert"
+        const val KEYSTORE = "keystore"
 
         // prefs
         const val SU_NOTIFICATION = "su_notification"
@@ -78,6 +82,10 @@ object Config : PreferenceConfig, DBConfig {
     @JvmField var recovery = false
     var denyList = false
 
+    var suManager by dbSettings(Key.SU_MANAGER, "", sync = true)
+    var suManagerCert by dbSettings(Key.SU_MANAGER_CERT, "", sync = true)
+    var keyStoreRaw by dbSettings(Key.KEYSTORE, "", sync = true)
+
     var bootloop by dbSettings(Key.BOOTLOOP, 0)
 
     var safetyNotice by preference(Key.SAFETY, true)
@@ -127,7 +135,35 @@ object Config : PreferenceConfig, DBConfig {
     private const val SU_FINGERPRINT = "su_fingerprint"
     private const val UPDATE_CHANNEL = "update_channel"
 
-    fun init() {
+    fun toBundle(): Bundle {
+        val bundle = Bundle()
+        for ((key, value) in prefs.all) {
+            when (value) {
+                is String -> bundle.putString(key, value)
+                is Int -> bundle.putInt(key, value)
+                is Boolean -> bundle.putBoolean(key, value)
+                is Long -> bundle.putLong(key, value)
+                is Float -> bundle.putFloat(key, value)
+            }
+        }
+        return bundle
+    }
+
+    @Suppress("DEPRECATION")
+    fun init(previousConfig: Bundle? = null) {
+        if (previousConfig != null && prefs.all.isEmpty()) {
+            prefs.edit {
+                for (key in previousConfig.keySet()) {
+                    when (val value = previousConfig.get(key)) {
+                        is String -> putString(key, value)
+                        is Int -> putInt(key, value)
+                        is Boolean -> putBoolean(key, value)
+                        is Long -> putLong(key, value)
+                        is Float -> putFloat(key, value)
+                    }
+                }
+            }
+        }
         prefs.edit {
             // Migrate su_fingerprint
             if (prefs.getBoolean(SU_FINGERPRINT, false))

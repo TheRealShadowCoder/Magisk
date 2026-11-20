@@ -20,6 +20,12 @@ interface DBConfig {
         name: String,
         default: Boolean
     ) = BoolDBProperty(name, default)
+
+    fun dbSettings(
+        name: String,
+        default: String,
+        sync: Boolean = false
+    ) = StringDBProperty(name, default, sync)
 }
 
 class IntDBProperty(
@@ -58,4 +64,29 @@ open class BoolDBProperty(
 
     override fun setValue(thisRef: DBConfig, property: KProperty<*>, value: Boolean) =
         base.setValue(thisRef, property, if (value) 1 else 0)
+}
+
+class StringDBProperty(
+    private val name: String,
+    private val default: String,
+    private val sync: Boolean
+) : ReadWriteProperty<DBConfig, String> {
+
+    @Volatile private var value: String? = null
+
+    @Synchronized
+    override fun getValue(thisRef: DBConfig, property: KProperty<*>): String {
+        if (value == null)
+            value = runBlocking { thisRef.settingsDB.fetch(name, default) }
+        return value ?: default
+    }
+
+    override fun setValue(thisRef: DBConfig, property: KProperty<*>, value: String) {
+        synchronized(this) { this.value = value }
+        if (sync) {
+            runBlocking { thisRef.settingsDB.put(name, value) }
+        } else {
+            thisRef.coroutineScope.launch { thisRef.settingsDB.put(name, value) }
+        }
+    }
 }
