@@ -95,7 +95,7 @@ a17_provider_preflight() {
     esac
     a17_mode="$(a17_choice_read)"
     ui_print "- Android 17 provider preference: $a17_mode"
-    a17_result="$(a17_apply "$a17_mode" 2>&1)"
+    a17_result="$(a17_apply "$a17_mode" installer 2>&1)"
     a17_rc="$?"
     ui_print "- $a17_result"
     if [ "$a17_rc" -ne 0 ]; then
