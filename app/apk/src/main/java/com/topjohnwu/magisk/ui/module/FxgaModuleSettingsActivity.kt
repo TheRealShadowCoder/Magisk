@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.topjohnwu.magisk.ui.MagiskTheme
 import com.topjohnwu.magisk.core.model.module.LocalModule
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ import org.json.JSONObject
 class FxgaModuleSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { FxgaModuleSettingsPage() } }
+        setContent { MagiskTheme { FxgaModuleSettingsPage() } }
     }
 }
 
