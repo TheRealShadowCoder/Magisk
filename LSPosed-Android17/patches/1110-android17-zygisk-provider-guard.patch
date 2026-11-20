@@ -1,23 +1,24 @@
 diff --git a/zygisk/module/customize.sh b/zygisk/module/customize.sh
 --- a/zygisk/module/customize.sh
 +++ b/zygisk/module/customize.sh
-@@ -53,9 +53,16 @@
- }
- # =========================================================
- 
+@@ -56,3 +56,14 @@
 -VERSION=$(grep_prop version "${TMPDIR}/module.prop")
 -ui_print "- Vector version ${VERSION}"
 -
 +VERSION=$(grep_prop version "${TMPDIR}/module.prop")
 +ui_print "- Vector version ${VERSION}"
 +
-+# Android 17 build: verify exactly one Zygisk provider before touching other modules.
-+# This helper ships inside the module and is SHA-verified by the extract function.
-+ui_print "- Checking Android 17 Zygisk provider configuration"
++# Android 17: choose ONE Zygisk implementation for the next boot.
++# Fresh installs use Auto; after manual selection the persisted choice wins.
++# Both helpers carry their own SHA256 and are verified before sourcing.
 +extract "$ZIPFILE" "a17-provider-guard.sh" "$TMPDIR"
++extract "$ZIPFILE" "a17-provider-control.sh" "$TMPDIR"
 +. "$TMPDIR/a17-provider-guard.sh"
-+a17_provider_preflight || abort "! Fix the Zygisk provider configuration before installing Vector"
++A17_SOURCE_ONLY=1
++. "$TMPDIR/a17-provider-control.sh"
++unset A17_SOURCE_ONLY
++a17_provider_preflight || abort "! Could not safely stage Zygisk provider preference"
 +
- # Disable existing LSPosed installation
- LSPOSED_DIR="/data/adb/modules/zygisk_lsposed"
- if [ -d "$LSPOSED_DIR" ]; then
+@@ -85,1 +96,1 @@
+-for file in module.prop action.sh service.sh uninstall.sh sepolicy.rule framework/vector.dex cli daemon.apk daemon manager.apk; do
++for file in module.prop action.sh service.sh uninstall.sh sepolicy.rule framework/vector.dex cli daemon.apk daemon manager.apk a17-provider-guard.sh a17-provider-control.sh; do
