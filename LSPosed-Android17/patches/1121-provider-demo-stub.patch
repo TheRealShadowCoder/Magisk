@@ -1,0 +1,13 @@
+diff --git a/manager/src/debug/kotlin/org/matrix/vector/manager/demo/FakeManagerService.kt b/manager/src/debug/kotlin/org/matrix/vector/manager/demo/FakeManagerService.kt
+--- a/manager/src/debug/kotlin/org/matrix/vector/manager/demo/FakeManagerService.kt
++++ b/manager/src/debug/kotlin/org/matrix/vector/manager/demo/FakeManagerService.kt
+@@ -242,1 +242,8 @@
+-    override fun getManagerApk(): ParcelFileDescriptor? = real?.managerApk
++    override fun getManagerApk(): ParcelFileDescriptor? = real?.managerApk
++
++    override fun getZygiskProviderStatus(): String =
++        real?.zygiskProviderStatus ?: "mode=auto\neffective=none\nreboot_required=no"
++
++    // Never change root implementation from a demo activity.
++    override fun selectZygiskProvider(mode: String?): String =
++        "error=Provider switching disabled in demo mode"
