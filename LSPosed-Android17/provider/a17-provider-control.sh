@@ -58,6 +58,20 @@ a17_has_magisk() {
   fi
 }
 a17_has_rz() { a17_rz_installed && echo yes || echo no; }
+a17_other_injectors_active() {
+  a17_active=""
+  for a17_id in zygisksu zygisk_next neozygisk rezygisk_next; do
+    for a17_root in /data/adb/modules /data/adb/modules_update; do
+      a17_dir="$a17_root/$a17_id"
+      if [ -f "$a17_dir/module.prop" ] && [ ! -e "$a17_dir/disable" ] &&
+         [ ! -e "$a17_dir/remove" ]; then
+        a17_active="$a17_active $a17_id"
+        break
+      fi
+    done
+  done
+  printf '%s' "$a17_active"
+}
 a17_resolve() {
   case "$1" in
     auto)
@@ -128,6 +142,11 @@ a17_apply() {
   [ "$(getprop ro.build.version.sdk 2>/dev/null)" = 37 ] || {
     echo "error=Android 17 API 37 required"; return 30;
   }
+  a17_others="$(a17_other_injectors_active)"
+  if [ -n "$a17_others" ]; then
+    echo "error=Disable other standalone Zygisk provider(s) first:$a17_others"
+    return 24
+  fi
   a17_magisk="$(a17_has_magisk)"
   a17_magisk_present=no
   a17_magisk_bin >/dev/null 2>&1 && a17_magisk_present=yes
