@@ -11,10 +11,10 @@ $zip = Join-Path $Destination ("A52-A17-Zygisk-ReZygisk-$stamp.zip")
 New-Item -Path $work -ItemType Directory -Force | Out-Null
 
 function Capture-Adb {
-    param([string]$Name, [string[]]$Args)
+    param([string]$Name, [string[]]$AdbArguments)
     $output = ""
     try {
-        $output = (& adb @Args 2>&1 | Out-String)
+        $output = (& adb @AdbArguments 2>&1 | Out-String)
     } catch {
         $output = "Command failed: $($_.Exception.Message)"
     }
