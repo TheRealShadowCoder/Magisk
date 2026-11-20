@@ -1,65 +1,29 @@
-# ADB control and diagnostic logging
+# FXGA Android 17 ADB diagnostics (v4 integration)
 
-## Trust boundary: no open debug backdoor
+The current source branch includes a root-authorized local CLI at `fxga/adb-module/fxga_diag.sh`, a bounded log collector `fxga/adb-module/fxga_log_service.sh` and a Windows ZIP-export wrapper at `fxga/windows/FXGA-ADB.ps1`. The GitHub Actions build packages `FXGA_Android17_ADB_Module.zip` next to the APK.
 
-The earlier FXGA Android 17 v3 diagnostic module (delivered as a separate ZIP) uses this access path:
+Each operation requires an authorized ADB connection and explicit Magisk approval of `su`. There is no network daemon, ADB permission bypass, blanket shell executor or unvetted private method invocation. Root access remains under Magisk's existing permissions.
+
+## Commands
 
 ```text
-authorized PC -> adb shell -> explicit Magisk su grant -> allowlisted fxga_diag.sh
-                                                       -> Magisk CLI / module state / logs
+status | health | modules | module-info ID | module-schema ID
+module-settings ID | module-enable ID | module-disable ID | apps
+app PACKAGE | logs PACKAGE | denylist-list | denylist-add PACKAGE PROCESS
+denylist-remove PACKAGE | journal | audit | report [PACKAGE]
 ```
 
-There is **no automatically opened network port, no ADB authorization bypass and no generic reflection/RPC execution of private methods**. This GitHub feature branch does not yet embed that ZIP as part of the APK source.
+`module-settings` is read-only; writes occur only through the app's schema-validated module settings UI. Shell `module-enable` and `module-disable` change next-boot module state, and DenyList mutations are explicit. Unknown private Kotlin/Rust/C++ functions remain inaccessible until audited handlers are written.
 
-## v3 diagnostic commands (external installable module)
-
-| Interface | Operations |
-|---|---|
-| `status` / `health` | Device API, SELinux, Magisk, boot and Zygisk status |
-| `modules` / `module-info <id>` | Installed module metadata and module layout |
-| `module-enable <id>` / `module-disable <id>` | Next-boot module enable/disable |
-| `app <pkg>` / `logs <pkg>` / `trace <pkg>` | Per-app diagnostic evidence |
-| `journal` / `audit` | Rotating local events and ADB action records |
-| `denylist-list` / `denylist-add` / `denylist-remove` | Explicit root-authorized process exclusion changes |
-| `coverage` / `functions` | Real command/telemetry coverage, not a promise of complete introspection |
-
-Examples once the separately supplied v3 module is installed:
+On Windows, from the repo root:
 
 ```powershell
-adb devices
-adb shell su -c id
-.\windows\FXGA-ADB.ps1 -Action health -ExportZip
-.\windows\FXGA-ADB.ps1 -Action module-info -ModuleId example_module
-.\windows\FXGA-ADB.ps1 -Action report -Package com.example.app
+.\fxga\windows\FXGA-ADB.ps1 -Action status -ExportZip
+.\fxga\windows\FXGA-ADB.ps1 -Action report -Package com.example.app
 ```
 
-The PowerShell wrapper from the v3 development kit writes report ZIP files to `%USERPROFILE%\Desktop\A52 Report`, leaving no loose report files in that directory. The GitHub feature branch does not include that Windows wrapper; it must be ported or supplied separately.
+Reports contain selected device/module findings and narrowly selected crash excerpts. Each PC report is a ZIP under `%USERPROFILE%\Desktop\A52 Report`; no loose files are retained there. The app's own compatibility screen exports a ZIP via Android's document picker. **Review reports before sharing:** diagnostic logs can still contain sensitive information despite best-effort filtering.
 
-## New module settings interface
+### Persistent journal
 
-The manager reads `fxga-settings.json` and writes `fxga-settings.conf` when the user explicitly taps **Save**. The current app source does **not** yet expose equivalent schema-validated per-module writes through ADB. Avoid raw `adb shell su -c "echo ... > ..."` for module configuration; that bypasses UI validation and could corrupt module state.
-
-For an eventual ADB interface, implement:
-
-```text
-fxga module-config list
-fxga module-config schema <module-id>
-fxga module-config get <module-id>
-fxga module-config set <module-id> <setting-key> <value> --confirm
-fxga module-config export <module-id>
-```
-
-These are **proposed**, not currently executable commands. Reuse the same schema validator as the Android app, restrict writes to known root-owned paths, log action names without values, and require an explicit root grant plus write confirmation.
-
-## Logging expectations
-
-- Emit bounded event metadata for module scan, schema failure and settings save (module ID and count, not settings values).
-- Keep rolling native Zygisk, module load and crash evidence separate from user-facing display state.
-- Never continuously log passwords, keystrokes, app text, authentication messages, raw device identifiers or third-party private data.
-- Report the module/ABI/API, time, error code and remediation where evidence exists.
-- Distinguish `observed`, `suspected`, `unknown` and `not tested`.
-- Before sharing ZIPs, inspect and redact raw logcat/crash dumps; keep them private by default.
-
-## Missing pieces
-
-A root authorization decision does not expose every private Kotlin/Rust/C++ method. A universal internal API needs documented command handlers or audited build-time instrumentation per function. There is no reliable static proof that all third-party Zygisk modules function on Android 17.
+The Magisk module starts a local rotating journal on normal boot (four approximately 1 MiB files), collecting Magisk/Zygisk and crash-error tags. The app's own event log holds only bounded method names and lifecycle events. Neither system claims complete arbitrary-app execution tracing or guaranteed Android 17 compatibility. Safe Mode remains the recovery mechanism.

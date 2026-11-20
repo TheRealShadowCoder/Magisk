@@ -52,3 +52,7 @@ python tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
 Avoid claiming universal Android 17 compatibility. Mark problems as reproduced, suspected or untested. New module settings types must have a validation rule, safe storage representation, tests, and protocol documentation. Preserve Magisk Safe Mode and never turn the app into an unprotected ADB command server.
 
 The primary upstream reference is [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk); this fork is not the upstream signed release.
+
+## Current merged source integration (FXGA v4)
+
+The feature branch also contains: normal-boot Zygisk enablement with safe-mode preservation, Android 17 app-domain SELinux updates, bounded lifecycle/settings event tracing, a Compose compatibility manager with opt-in per-app diagnostic ZIPs and DenyList actions, and a root-authorized ADB diagnostic Magisk module under `fxga/adb-module`. The CI build bundles the ADB module ZIP alongside the APK. **These changes are source-level until a successful compilation and Android 17 device test is recorded.**

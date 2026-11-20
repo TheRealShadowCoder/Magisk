@@ -81,7 +81,7 @@ Provide a versioned JSON schema, implement a defensive file reader, test every c
 
 ## Diagnostics and ADB
 
-The earlier v3 diagnostic ZIP includes a root-authorized, allowlisted ADB command set, log journal and per-app export. It is **separate** from the currently committed v32 source changes. See [ADB_DIAGNOSTICS.md](ADB_DIAGNOSTICS.md).
+The current v32 source includes the `fxga/adb-module` root-authorized ADB CLI, its log journal and a Windows ZIP exporter. The app also includes a compatibility screen with per-app diagnostic ZIP export. See [ADB_DIAGNOSTICS.md](ADB_DIAGNOSTICS.md).
 
 Future internal ADB handlers should follow a documented authorization model, typed parameters, explicit allowlists, confirmation for mutations, redaction, and tests; do not expose unrestricted Java/Kotlin reflection, private-data access or raw command execution.
 

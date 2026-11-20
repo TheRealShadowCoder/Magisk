@@ -64,3 +64,14 @@ Previous conversations produced stand-alone ZIPs targeting Magisk **v31.1**, inc
 3. Expose per-module health, last error and redacted ZIP export in the UI.
 4. Add live Zygisk module load status via native diagnostic events, without collecting sensitive application data.
 5. Add default-language string resources/translations and accessibility audits.
+
+## Integration added after initial module-settings draft
+
+- Native Zygisk normal-boot policy: `native/src/core/bootstages.rs` and `native/src/core/db.rs` (Safe Mode still exits first)
+- API 37 policy compatibility: `native/src/sepolicy/rules.rs`
+- Local app telemetry: `app/core/src/main/java/com/topjohnwu/magisk/core/FxgaTelemetry.kt`
+- Per-app compatibility and ZIP UI: `app/apk/src/main/java/com/topjohnwu/magisk/ui/zygisk/FxgaCompatibilityActivity.kt`
+- ADB diagnostic module: `fxga/adb-module/` and Windows controller: `fxga/windows/FXGA-ADB.ps1`
+- Build pipeline: `.github/workflows/build-v32-custom.yml`
+
+The original v31.1 ZIP patcher itself is **not** applied to this v32 source: its equivalent selected features are ported and adjusted for this codebase. No direct binary merge between APK versions is attempted.

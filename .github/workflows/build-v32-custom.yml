@@ -7,6 +7,10 @@ on:
       - feature/fxga-module-settings-a17
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,6 +46,10 @@ jobs:
             echo "FXGA_BUILD_MODE=debug" >> "$GITHUB_ENV"
             echo 'Custom release signing secrets absent or incomplete. Building a DEBUG APK instead.'
           fi
+
+      - name: Validate ADB module scripts
+        run: |
+          for file in fxga/adb-module/*.sh; do bash -n "$file"; done
 
       - name: Validate FXGA module settings schema
         run: |
