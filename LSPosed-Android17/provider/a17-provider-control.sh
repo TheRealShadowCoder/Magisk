@@ -9,10 +9,14 @@ A17_RZ=/data/adb/modules/rezygisk
 A17_RZ_NEXT=/data/adb/modules_update/rezygisk
 
 a17_magisk_bin() {
-  if command -v magisk >/dev/null 2>&1; then command -v magisk
-  elif [ -x /data/adb/magisk/magisk ]; then echo /data/adb/magisk/magisk
-  else return 1
+  # A stale Magisk binary on a KernelSU install is not a functioning provider.
+  a17_candidate=""
+  if command -v magisk >/dev/null 2>&1; then a17_candidate="$(command -v magisk)"
+  elif [ -x /data/adb/magisk/magisk ]; then a17_candidate=/data/adb/magisk/magisk
   fi
+  [ -n "$a17_candidate" ] || return 1
+  "$a17_candidate" -v >/dev/null 2>&1 || return 1
+  echo "$a17_candidate"
 }
 a17_magisk_state() {
   a17_bin="$(a17_magisk_bin)" || { echo absent; return; }
@@ -114,6 +118,13 @@ a17_apply() {
   a17_target="$(a17_resolve "$a17_mode" "$a17_magisk" "$(a17_has_rz)")"
   a17_rc=$?
   [ "$a17_rc" -eq 0 ] || { echo "error=selected provider unavailable"; return "$a17_rc"; }
+  # Check persistence before making any root-provider changes. All files remain
+  # root-owned and are never readable by third-party applications.
+  umask 077
+  mkdir -p "$A17_HOME" || { echo "error=cannot create provider preferences"; return 36; }
+  chmod 0700 "$A17_HOME" || return 36
+  touch "$A17_HOME/.write-check" || { echo "error=provider preference path readonly"; return 36; }
+  rm -f "$A17_HOME/.write-check"
   a17_old="$(a17_magisk_state)"
   [ "$a17_old" != unknown ] || { echo "error=Magisk Zygisk state unknown"; return 31; }
   a17_old_current=no
@@ -145,11 +156,16 @@ a17_apply() {
       echo "error=failed to enable ReZygisk; rollback attempted"; return 35
     fi
   fi
-  mkdir -p "$A17_HOME" || { echo "error=cannot persist provider choice"; return 36; }
-  chmod 0700 "$A17_HOME" || return 36
-  umask 077
   printf '%s\n' "$a17_mode" > "$A17_CHOICE.tmp" || return 36
-  mv -f "$A17_CHOICE.tmp" "$A17_CHOICE" || return 36
+  if ! mv -f "$A17_CHOICE.tmp" "$A17_CHOICE"; then
+    # Preference commit failed after provider staging. Undo what we can.
+    if [ "$a17_magisk" = yes ]; then
+      case "$a17_old" in on) a17_magisk_set 1 >/dev/null 2>&1 ;; off) a17_magisk_set 0 >/dev/null 2>&1 ;; esac
+    fi
+    a17_restore_markers "$a17_old_current" "$a17_old_next"
+    echo "error=provider choice was not saved; previous provider restored where possible"
+    return 36
+  fi
   a17_bootid > "$A17_BOOT"
   echo "staged=$a17_target"
   a17_status
