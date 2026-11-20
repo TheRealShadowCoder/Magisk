@@ -80,23 +80,19 @@ a17_provider_evaluate() {
 }
 
 a17_provider_preflight() {
-    a17_sdk="${API:-$(getprop ro.build.version.sdk 2>/dev/null)}"
-    a17_builtin="$(a17_magisk_builtin_state)"
-    a17_external="$(a17_module_providers)"
-    ui_print "- Android API: $a17_sdk"
-    ui_print "- Built-in Magisk Zygisk: $a17_builtin"
-    ui_print "- Standalone Zygisk provider(s): ${a17_external:-none}"
-    a17_out="$(a17_provider_evaluate "$a17_sdk" "$a17_builtin" "$a17_external")"
-    a17_result="$?"
-    ui_print "- $a17_out"
-    if [ "$a17_result" -ne 0 ]; then
-        ui_print "! Provider preflight failed. No root settings were changed."
-        return "$a17_result"
+    # The installer has also sourced a17-provider-control.sh. Source uses
+    # the saved user choice, or Auto (default), and stages ONE provider for
+    # the NEXT boot. It does not reboot the device.
+    a17_mode="$(a17_choice_read)"
+    ui_print "- Android 17 provider preference: $a17_mode"
+    a17_result="$(a17_apply "$a17_mode" 2>&1)"
+    a17_rc="$?"
+    ui_print "- $a17_result"
+    if [ "$a17_rc" -ne 0 ]; then
+        ui_print "! Could not stage a safe Zygisk provider configuration."
+        ui_print "! No framework installation will continue until a provider can be selected."
+        return "$a17_rc"
     fi
-    # Android 17 zygote_next support is an outstanding upstream ReZygisk issue.
-    # A valid configuration is NOT runtime verification.
-    if [ "$a17_external" = rezygisk ]; then
-        ui_print "- ReZygisk selected: verify zygote and system_server hooks after reboot"
-    fi
+    ui_print "- Provider staged for the next reboot (no automatic reboot)."
     return 0
 }
