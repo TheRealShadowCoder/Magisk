@@ -46,6 +46,18 @@ jobs:
             exit 1
           fi
 
+      - name: Apply experimental generation-retirement patch for Android 17
+        shell: bash
+        working-directory: vector
+        run: |
+          set -euo pipefail
+          patch="../support/LSPosed-Android17/patches/1024-module-generation-leak.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          grep -q 'ModuleAppService.forgetReplacedModules(newModules)' daemon/src/main/kotlin/org/matrix/vector/daemon/data/ConfigCache.kt
+          grep -q 'serviceMap = ConcurrentHashMap<String, ModuleAppService>()' daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ModuleAppService.kt
+          echo "Applied candidate upstream PR #1024; not a verified runtime fix."
+
       - name: Java 21
         uses: actions/setup-java@v4
         with:
@@ -116,7 +128,8 @@ jobs:
         shell: bash
         run: |
           cat > artifact/ANDROID17_DEVICE_TEST_REQUIRED.txt <<'EOF'
-          GITHUB ACTIONS RESULT = SOURCE BUILD + STATIC PACKAGE VERIFICATION ONLY.
+          GITHUB ACTIONS RESULT = PATCHED SOURCE BUILD + STATIC PACKAGE VERIFICATION ONLY.
+          Candidate unmerged upstream PR #1024 applied to reduce obsolete module references.
           Android 17 runtime compatibility has NOT been certified.
           To verify a full port: boot on SDK 37, start Zygisk, verify daemon
           and manager operation, run real module hook, test system_server, and
@@ -128,7 +141,7 @@ jobs:
       - name: Upload verification-gated build output
         uses: actions/upload-artifact@v4
         with:
-          name: Android17-Vector-3119-UNVERIFIED-RUNTIME
+          name: Android17-Vector-3119-CANDIDATE-MEMORY-FIX-UNVERIFIED
           path: artifact/
           if-no-files-found: error
           retention-days: 30
