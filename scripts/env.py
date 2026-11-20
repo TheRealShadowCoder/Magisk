@@ -94,7 +94,7 @@ def ensure_toolchain():
         error('Unmatched NDK. Please install/upgrade NDK with "build.py ndk"')
 
     # Use sccache for both Rust and C/C++ by default
-    if sccache := shutil.which("sccache"):
+    if os.environ.get("FXGA_DISABLE_SCCACHE") != "1" and (sccache := shutil.which("sccache")):
         os.environ["RUSTC_WRAPPER"] = sccache
         os.environ["NDK_CCACHE"] = sccache
         os.environ["CARGO_INCREMENTAL"] = "0"
