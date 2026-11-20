@@ -4,6 +4,11 @@
 
     <application android:localeConfig="@xml/locale_config">
         <activity
+            android:name=".ui.zygisk.FxgaCompatibilityActivity"
+            android:exported="false"
+            android:theme="@style/SplashTheme"
+            android:label="FXGA Android 17 compatibility" />
+        <activity
             android:name=".ui.module.FxgaModuleSettingsActivity"
             android:exported="false"
             android:theme="@style/SplashTheme"
