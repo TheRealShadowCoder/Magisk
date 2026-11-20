@@ -95,7 +95,9 @@ private object FxgaModuleStore {
                 "select" -> obj.optString("default", choices.first())
                 else -> obj.optInt("default", min).toString()
             }
-            FxgaSetting(key, obj.optString("label", key).take(80), type, default, choices, min, max)
+            FxgaSetting(key, obj.optString("label", key)
+                .filterNot { ch -> Character.isISOControl(ch) || Character.getType(ch) == Character.FORMAT.toInt() }
+                .take(80), type, default, choices, min, max)
                 .also { require(it.accepts(default)) { "Invalid default" } }
         }
     }
@@ -185,9 +187,9 @@ private fun FxgaModuleSettingsPage() {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(mod.name, style = MaterialTheme.typography.titleMedium)
-                            Text(mod.id + " · " + mod.version + " · " + if (mod.enabled) "Enabled" else "Disabled")
+                            Text(mod.id + " · " + mod.version + " · " + (if (mod.enabled) "Enabled" else "Disabled"))
                             Text("Author: " + mod.author.ifBlank { "unknown" } +
-                                " · " + if (mod.zygisk) "Zygisk" else "Standard")
+                                " · " + (if (mod.zygisk) "Zygisk" else "Standard"))
                             Text(mod.description.ifBlank { "No description provided" })
                             TextButton(onClick = {
                                 if (selected == mod.id) selected = null else {
