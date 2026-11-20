@@ -1,6 +1,9 @@
 name: Magisk custom v32 build
 
 on:
+  push:
+    branches:
+      - custom-v32-hide
   workflow_dispatch:
 
 permissions:
