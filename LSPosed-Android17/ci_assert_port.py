@@ -46,6 +46,18 @@ require("MODULE_GENERATION_EVICTION", cache, r"ModuleAppService\.forgetReplacedM
 require("MODULE_GENERATION_PER_PACKAGE", modapp,
         r"serviceMap\s*=\s*ConcurrentHashMap<String, ModuleAppService>\(\)")
 require("MODULE_GENERATION_EVICTION_METHOD", modapp, r"fun forgetReplacedModules\(")
+# New Android 17 provider-select settings must stay in sync across daemon and UI.
+require("PROVIDER_AIDL_PROTOCOL", "services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl", r"PROTOCOL_VERSION\s*=\s*4")
+require("PROVIDER_AIDL_STATUS", "services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl", r"String getZygiskProviderStatus\(\)")
+require("PROVIDER_AIDL_SELECT", "services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl", r"String selectZygiskProvider\(String mode\)")
+require("PROVIDER_DAEMON_BRIDGE", "daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt", r"ZygiskProviderControl\.select\(mode\)")
+require("PROVIDER_DAEMON_CONTROLLER", "daemon/src/main/kotlin/org/matrix/vector/daemon/utils/ZygiskProviderControl.kt", r'fun select\(mode: String\)')
+require("PROVIDER_MANAGER_CLIENT", "manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt", r"suspend fun selectZygiskProvider\(mode: String\)")
+require("PROVIDER_MANAGER_MENU", "manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt", r"ZygiskProviderSettings\(daemonAlive")
+require("PROVIDER_MANAGER_CHOICES", "manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/ZygiskProviderSettings.kt", r'"auto" to "Automatic \(recommended\)"')
+require("PROVIDER_INSTALL_SHA", "zygisk/module/customize.sh", r'extract "\$ZIPFILE" "a17-provider-control\.sh"')
+require("PROVIDER_AUTO_STAGING", "zygisk/module/a17-provider-control.sh", r'a17_apply.*')
+
 # Identifying the native ART source is not the same thing as testing its hooks.
 report = {
     "scope": "Android 17 API 37 LSPosed-derived framework",
