@@ -1,7 +1,10 @@
 diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
 --- a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
 +++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
-@@ -246,7 +246,10 @@
+@@ -243,13 +243,16 @@
+ 
+   override fun getBuildStamp(): String? = BuildConfig.VERSION_HASH.takeIf { it.isNotBlank() }
+ 
 -  override fun getInstalledPackagesFromAllUsers(
 -      flags: Int,
 -      filterNoProcess: Boolean
@@ -19,3 +22,6 @@ diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.
 +    val pm = packageManager ?: throw IllegalStateException("PackageManager not initialized")
 +    return ParcelableListSlice(pm.getInstalledPackagesFromAllUsers(flags, filterNoProcess))
 +  }
+ 
+   override fun getEnabledModules() = ModuleDatabase.enabledModules().toList()
+ 
