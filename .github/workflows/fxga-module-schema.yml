@@ -1,0 +1,19 @@
+name: FXGA module schema checks
+on:
+  pull_request:
+    paths:
+      - 'tools/fxga/**'
+      - 'docs/fxga/**'
+      - '.github/workflows/fxga-module-schema.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Self-test schema validator
+        run: python3 tools/fxga/validate_manifest.py --self-test
+      - name: Validate example manifest
+        run: python3 tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
