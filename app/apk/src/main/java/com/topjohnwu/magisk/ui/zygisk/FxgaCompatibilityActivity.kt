@@ -51,7 +51,7 @@ private fun validName(s: String) = s.matches(Regex("[A-Za-z0-9_.:]+")) && s.leng
 @Composable
 private fun FxgaCompatibilityActivity.CompatibilityPage() {
     val scope = rememberCoroutineScope()
-    val prefs = remember { getSharedPreferences("fxga_compat", MODE_PRIVATE) }
+    val prefs = remember { getSharedPreferences("fxga_compat", android.content.Context.MODE_PRIVATE) }
     var state by remember { mutableStateOf(ScanState()) }
     var search by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<AppRow?>(null) }
