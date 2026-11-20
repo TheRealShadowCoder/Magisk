@@ -38,6 +38,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "6f6b976e3315c158d501f743c3c609e80cae7ec8"
+          # Vector derives versionCode from origin/master, not HEAD. Pin this
+          # local CI ref to the checked-out revision to avoid stamping a newer code
+          # than the actual source. No remote branch is modified.
+          git update-ref refs/remotes/origin/master "$(git rev-parse HEAD)"
+          test "$(git rev-list --count refs/remotes/origin/master)" = "3119"
           grep -Eq 'val androidCompileSdkVersion = 37' build.gradle.kts
           grep -Eq 'val androidTargetSdkVersion = 37' build.gradle.kts
           git submodule status --recursive
@@ -105,6 +110,8 @@ jobs:
           test -s artifact/Vector-Android17-Daemon.apk
           sha256sum artifact/*.zip artifact/*.apk > artifact/SHA256SUMS.txt
           git -C vector rev-parse HEAD > artifact/SOURCE_REVISION.txt
+          printf '%s\n' 'UNMERGED upstream candidate PR: https://github.com/JingMatrix/Vector/pull/1024' > artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/patches/1024-module-generation-leak.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
 
       - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
         shell: bash
