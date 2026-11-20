@@ -26,6 +26,15 @@ Example `fxga-settings.json`:
 }
 ```
 
+## Check a manifest before publishing
+
+```sh
+python tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
+python tools/fxga/validate_manifest.py --self-test
+```
+
+The developer validator is supplementary. The Android manager validates the same supported fields again before writing.
+
 ## Parsing and constraints
 
 - Schema version is exactly `1`; maximum **40** settings.
