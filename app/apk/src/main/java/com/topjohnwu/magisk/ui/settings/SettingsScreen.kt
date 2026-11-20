@@ -1,6 +1,8 @@
 package com.topjohnwu.magisk.ui.settings
 
 import android.webkit.URLUtil
+import android.content.Intent
+import com.topjohnwu.magisk.ui.module.FxgaModuleSettingsActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -89,6 +91,7 @@ fun SettingsScreen(
         onRestoreApp = { (context as? Activity)?.let(viewModel::restoreMagiskApp) },
         onHideAppConfirm = { label -> (context as? Activity)?.let { viewModel.hideApp(it, label) } },
         onCreateHosts = viewModel::createHosts,
+        onOpenModuleSettings = { context.startActivity(Intent(context, FxgaModuleSettingsActivity::class.java)) },
         onToggleZygisk = viewModel::toggleZygisk,
         onToggleDenyList = viewModel::toggleDenyList,
         // Drop taps while a screen transition runs, so a quick second tap can't push again
@@ -126,6 +129,7 @@ fun SettingsContent(
     onRestoreApp: () -> Unit,
     onHideAppConfirm: (String) -> Unit,
     onCreateHosts: () -> Unit,
+    onOpenModuleSettings: () -> Unit,
     onToggleZygisk: (Boolean) -> Unit,
     onToggleDenyList: (Boolean) -> Unit,
     onNavigateToDenyList: () -> Unit,
@@ -219,6 +223,7 @@ fun SettingsContent(
                         MagiskSection(
                             uiState = uiState,
                             onCreateHosts = onCreateHosts,
+                            onOpenModuleSettings = onOpenModuleSettings,
                             onToggleZygisk = onToggleZygisk,
                             onToggleDenyList = onToggleDenyList,
                             onNavigateToDenyList = onNavigateToDenyList,
@@ -443,6 +448,7 @@ private fun AppSettingsSection(
 private fun MagiskSection(
     uiState: SettingsUiState,
     onCreateHosts: () -> Unit,
+    onOpenModuleSettings: () -> Unit,
     onToggleZygisk: (Boolean) -> Unit,
     onToggleDenyList: (Boolean) -> Unit,
     onNavigateToDenyList: () -> Unit,
@@ -459,6 +465,16 @@ private fun MagiskSection(
             title = stringResource(CoreR.string.settings_hosts_title),
             summary = stringResource(CoreR.string.settings_hosts_summary),
             onClick = onCreateHosts
+        )
+
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
+        SettingsArrow(
+            title = "FXGA module settings",
+            summary = "Read installed modules and edit supported module options",
+            onClick = onOpenModuleSettings
         )
 
         if (uiState.isZygiskSupported) {
