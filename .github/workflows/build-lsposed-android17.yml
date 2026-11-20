@@ -76,6 +76,18 @@ jobs:
           grep -q 'Component lookup failed' daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
           echo "Applied candidate consistency fixes for #1099 and partial #1098."
 
+      - name: Prevent false-empty module scans during Android service startup
+        shell: bash
+        working-directory: vector
+        run: |
+          set -euo pipefail
+          patch="../support/LSPosed-Android17/patches/1099-fail-closed-on-missing-package-manager.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          grep -q 'PackageManager not initialized' daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+          git diff --check
+          echo "Staged a fail-closed Binder response when Android PackageManager is not ready."
+
       - name: Java 21
         uses: actions/setup-java@v4
         with:
@@ -127,6 +139,7 @@ jobs:
           sha256sum support/LSPosed-Android17/patches/1024-module-generation-leak.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
           printf '%s\n' 'CANDIDATE manager discovery consistency; not upstream validated' >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/patches/1099-manager-discovery-consistency.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/patches/1099-fail-closed-on-missing-package-manager.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
 
       - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
         shell: bash
