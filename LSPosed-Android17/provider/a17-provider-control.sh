@@ -45,7 +45,18 @@ a17_choice_read() {
   fi
   echo auto
 }
-a17_has_magisk() { a17_magisk_bin >/dev/null 2>&1 && echo yes || echo no; }
+a17_has_magisk() {
+  # Magisk v31.0 is the first version with Android 17 / API 37 Zygisk hooks.
+  # -V emits the numeric versionCode (31000 for 31.0, 31100 for 31.1).
+  a17_bin="$(a17_magisk_bin)" || { echo no; return; }
+  a17_code="$("$a17_bin" -V 2>/dev/null)" || { echo no; return; }
+  case "$a17_code" in ""|*[!0-9]*) echo no; return ;; esac
+  if [ "$a17_code" -ge 31000 ] && [ "$(a17_magisk_state)" != unknown ]; then
+    echo yes
+  else
+    echo no
+  fi
+}
 a17_has_rz() { a17_rz_installed && echo yes || echo no; }
 a17_resolve() {
   case "$1" in
@@ -118,6 +129,8 @@ a17_apply() {
     echo "error=Android 17 API 37 required"; return 30;
   }
   a17_magisk="$(a17_has_magisk)"
+  a17_magisk_present=no
+  a17_magisk_bin >/dev/null 2>&1 && a17_magisk_present=yes
   a17_target="$(a17_resolve "$a17_mode" "$a17_magisk" "$(a17_has_rz)")"
   a17_rc=$?
   [ "$a17_rc" -eq 0 ] || { echo "error=selected provider unavailable"; return "$a17_rc"; }
@@ -129,6 +142,10 @@ a17_apply() {
   touch "$A17_HOME/.write-check" || { echo "error=provider preference path readonly"; return 36; }
   rm -f "$A17_HOME/.write-check"
   a17_old="$(a17_magisk_state)"
+  if [ "$a17_magisk_present" = yes ] && [ "$a17_old" = unknown ]; then
+    echo "error=Magisk database is unreachable; cannot safely select an injector"
+    return 31
+  fi
   a17_prompt_needed=no
   if [ "$2" = installer ] && [ "$a17_mode" = auto ] && [ "$a17_old" = on ] && a17_rz_enabled; then
     a17_prompt_needed=yes
@@ -152,13 +169,13 @@ a17_apply() {
       fi
     fi
   else
-    if [ "$a17_magisk" = yes ] && [ "$a17_old" != off ]; then
+    if [ "$a17_magisk_present" = yes ] && [ "$a17_old" != off ]; then
       if ! a17_magisk_set 0; then
         echo "error=failed to disable built-in Zygisk"; return 34
       fi
     fi
     if ! a17_mark_rz enable; then
-      if [ "$a17_magisk" = yes ] && [ "$a17_old" = on ]; then a17_magisk_set 1 >/dev/null 2>&1; fi
+      if [ "$a17_magisk_present" = yes ] && [ "$a17_old" = on ]; then a17_magisk_set 1 >/dev/null 2>&1; fi
       a17_restore_markers "$a17_old_current" "$a17_old_next"
       echo "error=failed to enable ReZygisk; rollback attempted"; return 35
     fi
@@ -166,7 +183,7 @@ a17_apply() {
   printf '%s\n' "$a17_mode" > "$A17_CHOICE.tmp" || return 36
   if ! mv -f "$A17_CHOICE.tmp" "$A17_CHOICE"; then
     # Preference commit failed after provider staging. Undo what we can.
-    if [ "$a17_magisk" = yes ]; then
+    if [ "$a17_magisk_present" = yes ]; then
       case "$a17_old" in on) a17_magisk_set 1 >/dev/null 2>&1 ;; off) a17_magisk_set 0 >/dev/null 2>&1 ;; esac
     fi
     a17_restore_markers "$a17_old_current" "$a17_old_next"
