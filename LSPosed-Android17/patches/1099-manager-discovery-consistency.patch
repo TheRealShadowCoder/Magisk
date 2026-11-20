@@ -1,11 +1,20 @@
 diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
 --- a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
 +++ b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/modules/ModulesViewModel.kt
-@@ -4,1 +4,2 @@
+@@ -1,7 +1,8 @@
+ package org.matrix.vector.manager.ui.screens.modules
+ 
+ import android.os.SystemClock
 -import android.content.pm.PackageManager
 +import android.content.pm.PackageManager
 +import java.util.concurrent.atomic.AtomicInteger
-@@ -36,1 +37,8 @@
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
+ import kotlinx.coroutines.Dispatchers
+@@ -33,7 +34,14 @@
+ import org.matrix.vector.manager.logW
+ 
+ /** One tab: a user, and the modules installed for them. */
 -data class UserModulesState(val user: DeviceUser, val modules: List<InstalledModule>)
 +data class UserModulesState(val user: DeviceUser, val modules: List<InstalledModule>)
 +
@@ -15,12 +24,24 @@ diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/module
 +    val daemonAvailable: Boolean,
 +    val scanFailed: Boolean,
 +)
-@@ -106,1 +114,3 @@
+ 
+ /** What the list is showing. Answering "what is running" should not need a scroll. */
+ enum class ModuleFilter {
+@@ -103,7 +111,9 @@
+     private val packageManager: PackageManager,
+ ) : ViewModel() {
+ 
 -    private val _discovered = MutableStateFlow<List<UserModulesState>>(emptyList())
 +    private val scanGeneration = AtomicInteger(0)
 +
 +    private val _discovered = MutableStateFlow<List<UserModulesState>>(emptyList())
-@@ -401,9 +411,19 @@
+ 
+     private val _isLoading = MutableStateFlow(true)
+     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+@@ -398,15 +408,25 @@
+      * Rediscovers the installed modules. [refresh] says "not from the cache", and is set by a pull
+      * and by the reload after an uninstall — the two callers that know the cache is behind.
+      */
 -    fun loadModules(refresh: Boolean = false) {
 -        viewModelScope.launch {
 -            _isLoading.update { true }
@@ -49,27 +70,53 @@ diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/module
 +            _isLoading.update { false }
 +        }
 +    }
-@@ -493,1 +513,1 @@
+ 
+     /**
+      * Reads each module's scope size and API requirement after the list is already on screen.
+@@ -490,6 +510,6 @@
+         }
+     }
+ 
 -    private suspend fun discover(refresh: Boolean): List<UserModulesState> {
 +    private suspend fun discover(refresh: Boolean): ModuleScanResult {
-@@ -498,1 +518,1 @@
+         val usersResult = daemonClient.getUsers()
+         usersResult.onFailure { e ->
+@@ -496,6 +516,6 @@
+             logW("modules: user list unavailable, treating the daemon as unreachable", e)
+         }
 -        _daemonAvailable.value = usersResult.isSuccess
 +        val daemonAvailable = usersResult.isSuccess
-@@ -507,1 +527,1 @@
+         val users = usersResult.getOrNull() ?: emptyList()
+ 
+         // Through the repository, so concurrent rescans join one enumeration. The package
+@@ -504,7 +524,7 @@
+         // profile out of the list.
+         val scan = ServiceLocator.apps.moduleScanPackages(refresh)
+         scan.onFailure { e -> logE("modules: installed package list unavailable", e) }
 -        _scanFailed.value = scan.isFailure
 +        val scanFailed = scan.isFailure
-@@ -573,1 +593,5 @@
+         val packages = scan.getOrDefault(emptyList())
+ 
+         // Through the cache, not straight to ModuleDetection: inspecting a package means opening
+@@ -570,6 +590,10 @@
+         // had one adds a second tab to a screen that otherwise has none, and the tab bar then
+         // implies a choice where there is nothing to choose. If that empties the list entirely,
+         // keep it as it was so the empty state has a user to name.
 -        return perUser.filter { it.modules.isNotEmpty() }.ifEmpty { perUser.take(1) }
 +        return ModuleScanResult(
 +            tabs = perUser.filter { it.modules.isNotEmpty() }.ifEmpty { perUser.take(1) },
 +            daemonAvailable = daemonAvailable,
 +            scanFailed = scanFailed,
 +        )
-
+     }
+ }
 diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
 --- a/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
 +++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtensions.kt
-@@ -259,6 +259,12 @@
+@@ -256,12 +256,18 @@
+   if (filterNoProcess) {
+     return result
+         .parallelStream()
 -        .filter {
 -          getPackageInfoWithComponents(
 -                  it.packageName, MATCH_ALL_FLAGS, it.applicationInfo!!.uid / PER_USER_RANGE)
@@ -88,3 +135,6 @@ diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/system/SystemExtens
 +            components.fetchProcesses().isNotEmpty()
 +          }
 +        }
+         .collect(Collectors.toList())
+   }
+ 
