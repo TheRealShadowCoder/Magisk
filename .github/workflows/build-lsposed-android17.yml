@@ -103,6 +103,16 @@ jobs:
           grep -q 'ZygiskProviderControl' daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
           echo "Manager / daemon IPC and Android 17 Zygisk provider menu staged."
 
+      - name: Keep demo builds safe with provider selection stubs
+        shell: bash
+        working-directory: vector
+        run: |
+          set -euo pipefail
+          patch="../support/LSPosed-Android17/patches/1121-provider-demo-stub.patch"
+          git apply --check "$patch"
+          git apply "$patch"
+          grep -q 'Provider switching disabled in demo mode' manager/src/debug/kotlin/org/matrix/vector/manager/demo/FakeManagerService.kt
+
       - name: Apply experimental generation-retirement patch for Android 17
         shell: bash
         working-directory: vector
@@ -216,6 +226,7 @@ jobs:
           sha256sum support/LSPosed-Android17/provider/a17-provider-guard.sh >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/provider/a17-provider-control.sh >> artifact/APPLIED_SOURCE_PATCHES.txt
           sha256sum support/LSPosed-Android17/patches/1120-android17-provider-settings-ui.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
+          sha256sum support/LSPosed-Android17/patches/1121-provider-demo-stub.patch >> artifact/APPLIED_SOURCE_PATCHES.txt
 
       - name: Validate native ABIs, sha256 manifests, and ELF 16 KiB alignment
         shell: bash
