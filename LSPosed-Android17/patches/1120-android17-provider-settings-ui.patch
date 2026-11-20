@@ -1,10 +1,19 @@
 diff --git a/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl b/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
 --- a/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
 +++ b/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
-@@ -76,1 +76,1 @@
+@@ -73,7 +73,7 @@
+      * transaction ids follow declaration order, this number is the only thing standing between a
+      * mismatched pair and a call that lands on the wrong method.</p>
+      */
 -    const int PROTOCOL_VERSION = 3;
 +    const int PROTOCOL_VERSION = 4;
-@@ -770,1 +770,7 @@
+ 
+     /**
+      * Which generation of this interface the daemon implements, never below 1.
+@@ -767,7 +767,13 @@
+      *         leaves anything to offer: the file is missing, its signature is not the one this
+      *         framework accepts, or the daemon is too old to answer at all
+      */
 -    @nullable ParcelFileDescriptor getManagerApk();
 +    @nullable ParcelFileDescriptor getManagerApk();
 +
@@ -13,26 +22,42 @@ diff --git a/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManag
 +
 +    /** Stage an Auto/Magisk/ReZygisk choice for next boot; returns real result or error. */
 +    String selectZygiskProvider(String mode);
-
+ 
+     /**
+      * The daemon did not say which root implementation is installed.
 diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
 --- a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
 +++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
-@@ -44,1 +44,2 @@
+@@ -41,7 +41,8 @@
+ import org.matrix.vector.daemon.system.*
+ import org.matrix.vector.daemon.utils.InstallerVerifier
+ import org.matrix.vector.daemon.utils.PackageOptimizer
 -import org.matrix.vector.daemon.utils.RootImplementation
 +import org.matrix.vector.daemon.utils.RootImplementation
 +import org.matrix.vector.daemon.utils.ZygiskProviderControl
-@@ -596,1 +597,5 @@
+ import org.matrix.vector.daemon.utils.applyXspaceWorkaround
+ import org.matrix.vector.daemon.utils.getRealUsers
+ import rikka.parcelablelist.ParcelableListSlice
+@@ -593,7 +594,11 @@
+   override fun getIncludeNewApps(packageName: String, userId: Int) =
+       ModuleDatabase.getIncludeNewApps(packageName, userId)
+ 
 -  override fun getRootImplementation() = RootImplementation.implementation
 +  override fun getRootImplementation() = RootImplementation.implementation
 +
 +  override fun getZygiskProviderStatus(): String = ZygiskProviderControl.status()
 +
 +  override fun selectZygiskProvider(mode: String): String = ZygiskProviderControl.select(mode)
-
+ 
+ 
+   override fun installFrameworkZip(zipPath: String, receiver: IFrameworkInstallReceiver) {
 diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
 --- a/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
 +++ b/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
-@@ -380,1 +380,9 @@
+@@ -377,7 +377,15 @@
+         enable: Boolean
+     ): Result<Boolean> = runIpc { it.setIncludeNewApps(packageName, userId, enable) }
+ 
 -    suspend fun getRootImplementation(): Result<Int> = runIpc { it.rootImplementation }
 +    suspend fun getRootImplementation(): Result<Int> = runIpc { it.rootImplementation }
 +
@@ -43,11 +68,16 @@ diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.
 +    suspend fun selectZygiskProvider(mode: String): Result<String> = runIpc {
 +        it.selectZygiskProvider(mode)
 +    }
-
+ 
+     /**
+      * Starts a flash and returns as soon as the daemon has accepted it.
 diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
 --- a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
 +++ b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
-@@ -232,1 +232,8 @@
+@@ -229,7 +229,14 @@
+                 )
+             }
+ 
 -            // How to get back in. Only parasitically: installed, the manager has a launcher icon
 +            // Android 17 root injection provider settings. The daemon stages provider changes
 +            // for the next reboot without restarting Zygote from inside the manager.
@@ -57,4 +87,6 @@ diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/S
 +            }
 +
 +            // How to get back in. Only parasitically: installed, the manager has a launcher icon
-
+             // like any other app and none of this means anything.
+             if (presence.parasitic) {
+                 item {
