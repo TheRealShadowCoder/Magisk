@@ -24,6 +24,7 @@ Implemented on this branch:
 | Document | Contents |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | App/native components, data flow, source navigation |
+| [APP_DEVELOPER_REFERENCE.md](APP_DEVELOPER_REFERENCE.md) | Source directory map and verified settings function inventory |
 | [MODULE_PROTOCOL.md](MODULE_PROTOCOL.md) | Module author integration, schema, file location, examples |
 | [ADB_DIAGNOSTICS.md](ADB_DIAGNOSTICS.md) | ADB security model, logging, evidence exports, current coverage |
 | [ANDROID17_TEST_PLAN.md](ANDROID17_TEST_PLAN.md) | API 37 matrix, build instructions, tests and release blockers |
