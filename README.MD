@@ -41,6 +41,10 @@ Default string resources for the Magisk app are located here:
 
 Translate each and place them in the respective locations (`[module]/src/main/res/values-[lang]/strings.xml`).
 
+## FXGA fork developer documentation
+
+This fork includes an experimental [FXGA module settings manager and Android 17 developer guides](docs/fxga/README.md). It is separate from the official Magisk release, and the new module settings UI is **not yet handset-verified**.
+
 ## License
 
     Magisk, including all git submodules are free software:
