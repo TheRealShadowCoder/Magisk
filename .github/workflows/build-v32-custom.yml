@@ -5,6 +5,7 @@ on:
     branches:
       - custom-v32-hide
       - feature/fxga-module-settings-a17
+      - feature/vector-android17-zygisk-interop
   workflow_dispatch:
 
 concurrency:
@@ -55,6 +56,10 @@ jobs:
         run: |
           python3 tools/fxga/validate_manifest.py --self-test
           python3 tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
+
+      - name: Verify Vector API compatibility and safe Magisk provider boot logic
+        run: |
+          python3 tools/fxga/test_vector_provider_compat.py
 
       - name: Build Magisk manager and native components
         env:
