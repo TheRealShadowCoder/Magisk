@@ -5,6 +5,7 @@
 A17_HOME=/data/adb/vector-provider
 A17_CHOICE=$A17_HOME/choice
 A17_BOOT=$A17_HOME/pending-boot-id
+A17_PROMPT=$A17_HOME/offer-provider-choice
 A17_RZ=/data/adb/modules/rezygisk
 A17_RZ_NEXT=/data/adb/modules_update/rezygisk
 
@@ -74,13 +75,15 @@ a17_status() {
   a17_effective="$(a17_resolve "$a17_mode" "$(a17_has_magisk)" "$(a17_has_rz)" 2>/dev/null)" || a17_effective=none
   a17_conflict=no
   [ "$a17_builtin" = on ] && [ "$a17_rz" = enabled ] && a17_conflict=yes
+  a17_prompt=no
+  [ -f "$A17_PROMPT" ] && a17_prompt=yes
   a17_pending=no
   if [ -f "$A17_BOOT" ]; then
     IFS= read -r a17_before < "$A17_BOOT"
     [ "$a17_before" = "$(a17_bootid)" ] && a17_pending=yes
   fi
-  printf 'mode=%s\neffective=%s\nbuiltin=%s\nrezygisk=%s\nconflict=%s\nreboot_required=%s\n' \
-    "$a17_mode" "$a17_effective" "$a17_builtin" "$a17_rz" "$a17_conflict" "$a17_pending"
+  printf 'mode=%s\neffective=%s\nbuiltin=%s\nrezygisk=%s\nconflict=%s\nchoice_prompt=%s\nreboot_required=%s\n' \
+    "$a17_mode" "$a17_effective" "$a17_builtin" "$a17_rz" "$a17_conflict" "$a17_prompt" "$a17_pending"
 }
 a17_magisk_set() {
   a17_value="$1"
@@ -126,6 +129,10 @@ a17_apply() {
   touch "$A17_HOME/.write-check" || { echo "error=provider preference path readonly"; return 36; }
   rm -f "$A17_HOME/.write-check"
   a17_old="$(a17_magisk_state)"
+  a17_prompt_needed=no
+  if [ "$2" = installer ] && [ "$a17_mode" = auto ] && [ "$a17_old" = on ] && a17_rz_enabled; then
+    a17_prompt_needed=yes
+  fi
   [ "$a17_old" != unknown ] || { echo "error=Magisk Zygisk state unknown"; return 31; }
   a17_old_current=no
   a17_old_next=no
@@ -167,6 +174,12 @@ a17_apply() {
     return 36
   fi
   a17_bootid > "$A17_BOOT"
+  if [ "$2" = installer ]; then
+    if [ "$a17_prompt_needed" = yes ]; then touch "$A17_PROMPT"; fi
+  else
+    # The user has made a choice in the manager, including choosing Auto.
+    rm -f "$A17_PROMPT"
+  fi
   echo "staged=$a17_target"
   a17_status
 }
@@ -174,7 +187,7 @@ if [ "x$A17_SOURCE_ONLY" != x1 ]; then
   case "$1" in
     status) a17_status ;;
     select) a17_apply "$2" ;;
-    apply-saved) a17_apply "$(a17_choice_read)" ;;
+    apply-saved) a17_apply "$(a17_choice_read)" installer ;;
     *) echo "error=usage: status|select auto|magisk|rezygisk|apply-saved"; exit 2 ;;
   esac
 fi
