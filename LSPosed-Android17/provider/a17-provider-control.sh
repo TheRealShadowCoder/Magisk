@@ -46,16 +46,33 @@ a17_choice_read() {
   echo auto
 }
 a17_has_magisk() {
-  # Magisk v31.0 is the first version with Android 17 / API 37 Zygisk hooks.
-  # -V emits the numeric versionCode (31000 for 31.0, 31100 for 31.1).
+  # Magisk's versionCode is not standardized across forks: this custom FXGA v32
+  # build sets versionCode=1000000. Always check the running daemon's -v
+  # version NAME, not numeric -V, for API 37 Magisk 31+ compatibility.
   a17_bin="$(a17_magisk_bin)" || { echo no; return; }
-  a17_code="$("$a17_bin" -V 2>/dev/null)" || { echo no; return; }
-  case "$a17_code" in ""|*[!0-9]*) echo no; return ;; esac
-  if [ "$a17_code" -ge 31000 ] && [ "$(a17_magisk_state)" != unknown ]; then
+  a17_version="$("$a17_bin" -v 2>/dev/null)" || { echo no; return; }
+  a17_major="${a17_version%%.*}"
+  case "$a17_major" in ""|*[!0-9]*) echo no; return ;; esac
+  if [ "$a17_major" -ge 31 ] && [ "$(a17_magisk_state)" != unknown ]; then
     echo yes
   else
     echo no
   fi
+}
+
+a17_is_fxga_magisk() {
+  a17_bin="$(a17_magisk_bin)" || return 1
+  a17_version="$("$a17_bin" -v 2>/dev/null)" || return 1
+  case "$a17_version" in *fxga*|*FXGA*) return 0 ;; *) return 1 ;; esac
+}
+a17_magisk_supports_rezygisk() {
+  # This boot-specific handshake is written only by the provider-aware Magisk
+  # startup path. On the earlier custom v32 core, Zygisk is forced ON at every
+  # boot and a database-only switch would be silently undone.
+  a17_marker="$A17_HOME/magisk-provider-aware-boot-id"
+  [ -f "$a17_marker" ] || return 1
+  IFS= read -r a17_marker_id < "$a17_marker" || return 1
+  [ "$a17_marker_id" = "$(a17_bootid)" ]
 }
 a17_has_rz() { a17_rz_installed && echo yes || echo no; }
 a17_other_injectors_active() {
@@ -153,6 +170,14 @@ a17_apply() {
   a17_target="$(a17_resolve "$a17_mode" "$a17_magisk" "$(a17_has_rz)")"
   a17_rc=$?
   [ "$a17_rc" -eq 0 ] || { echo "error=selected provider unavailable"; return "$a17_rc"; }
+  # The user's Magisk FXGA v32 branch forces Zygisk on during post-fs-data.
+  # Refuse a false-success ReZygisk switch unless a compatible core actually
+  # acknowledged provider-choice support during this boot.
+  if [ "$a17_target" = rezygisk ] && [ "$a17_magisk_present" = yes ] &&
+     a17_is_fxga_magisk && ! a17_magisk_supports_rezygisk; then
+    echo "error=This FXGA Magisk v32 build forces Zygisk ON at boot; use the provider-aware Magisk integration build before selecting ReZygisk"
+    return 38
+  fi
   # Check persistence before making any root-provider changes. All files remain
   # root-owned and are never readable by third-party applications.
   umask 077
