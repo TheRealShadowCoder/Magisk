@@ -49,6 +49,10 @@ jobs:
           python3 tools/fxga/validate_manifest.py docs/fxga/examples/fxga-settings.json
 
       - name: Build Magisk manager and native components
+        env:
+          # The hosted runner currently has an incompatible sccache/Rust proxy.
+          # Native compilation works without it; do not cache a broken wrapper.
+          FXGA_DISABLE_SCCACHE: "1"
         run: |
           if [ "$FXGA_BUILD_MODE" = release ]; then
             ./build.py -vr all
