@@ -54,7 +54,9 @@ fun ZygiskProviderSettings(daemonAlive: Boolean) {
             val saved = result.lineSequence()
                 .firstOrNull { it.startsWith("mode=") }?.substringAfter("=") ?: "auto"
             selected = saved.takeIf { it in setOf("auto", "magisk", "rezygisk") } ?: "auto"
-            choosePrompt = result.lineSequence().any { it == "conflict=yes" }
+            choosePrompt = result.lineSequence().any {
+                it == "conflict=yes" || it == "choice_prompt=yes"
+            }
         }
     }
 
