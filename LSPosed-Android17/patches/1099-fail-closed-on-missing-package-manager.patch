@@ -1,0 +1,21 @@
+diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+--- a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
++++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+@@ -246,7 +246,10 @@
+-  override fun getInstalledPackagesFromAllUsers(
+-      flags: Int,
+-      filterNoProcess: Boolean
+-  ): ParcelableListSlice<PackageInfo> {
+-    return ParcelableListSlice(
+-        packageManager?.getInstalledPackagesFromAllUsers(flags, filterNoProcess) ?: emptyList())
+-  }
++  override fun getInstalledPackagesFromAllUsers(
++      flags: Int,
++      filterNoProcess: Boolean
++  ): ParcelableListSlice<PackageInfo> {
++    // PackageManager may not yet exist while system services are attaching on API 37.
++    // Returning an empty list here is a false success that makes all modules disappear.
++    // Force an IPC failure so the manager retains the last good list and can retry.
++    val pm = packageManager ?: throw IllegalStateException("PackageManager not initialized")
++    return ParcelableListSlice(pm.getInstalledPackagesFromAllUsers(flags, filterNoProcess))
++  }
