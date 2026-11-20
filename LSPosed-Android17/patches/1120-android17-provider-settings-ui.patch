@@ -1,0 +1,60 @@
+diff --git a/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl b/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
+--- a/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
++++ b/services/manager-service/src/main/aidl/org/matrix/vector/ipc/IManagerService.aidl
+@@ -76,1 +76,1 @@
+-    const int PROTOCOL_VERSION = 3;
++    const int PROTOCOL_VERSION = 4;
+@@ -770,1 +770,7 @@
+-    @nullable ParcelFileDescriptor getManagerApk();
++    @nullable ParcelFileDescriptor getManagerApk();
++
++    /** Android 17 provider mode, installed injector status and pending-reboot state. */
++    String getZygiskProviderStatus();
++
++    /** Stage an Auto/Magisk/ReZygisk choice for next boot; returns real result or error. */
++    String selectZygiskProvider(String mode);
+
+diff --git a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+--- a/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
++++ b/daemon/src/main/kotlin/org/matrix/vector/daemon/ipc/ManagerService.kt
+@@ -44,1 +44,2 @@
+-import org.matrix.vector.daemon.utils.RootImplementation
++import org.matrix.vector.daemon.utils.RootImplementation
++import org.matrix.vector.daemon.utils.ZygiskProviderControl
+@@ -596,1 +597,5 @@
+-  override fun getRootImplementation() = RootImplementation.implementation
++  override fun getRootImplementation() = RootImplementation.implementation
++
++  override fun getZygiskProviderStatus(): String = ZygiskProviderControl.status()
++
++  override fun selectZygiskProvider(mode: String): String = ZygiskProviderControl.select(mode)
+
+diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
+--- a/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
++++ b/manager/src/main/kotlin/org/matrix/vector/manager/ipc/DaemonClient.kt
+@@ -380,1 +380,9 @@
+-    suspend fun getRootImplementation(): Result<Int> = runIpc { it.rootImplementation }
++    suspend fun getRootImplementation(): Result<Int> = runIpc { it.rootImplementation }
++
++    suspend fun getZygiskProviderStatus(): Result<String> = runIpc {
++        it.zygiskProviderStatus
++    }
++
++    suspend fun selectZygiskProvider(mode: String): Result<String> = runIpc {
++        it.selectZygiskProvider(mode)
++    }
+
+diff --git a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
+--- a/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
++++ b/manager/src/main/kotlin/org/matrix/vector/manager/ui/screens/home/SystemStatusScreen.kt
+@@ -232,1 +232,8 @@
+-            // How to get back in. Only parasitically: installed, the manager has a launcher icon
++            // Android 17 root injection provider settings. The daemon stages provider changes
++            // for the next reboot without restarting Zygote from inside the manager.
++            item {
++                Spacer(Modifier.height(12.dp))
++                ZygiskProviderSettings(daemonAlive = daemonAlive)
++            }
++
++            // How to get back in. Only parasitically: installed, the manager has a launcher icon
+
